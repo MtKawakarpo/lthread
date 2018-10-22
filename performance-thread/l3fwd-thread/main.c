@@ -78,6 +78,7 @@
 #include <cmdline_parse_etheraddr.h>
 
 #include <lthread_api.h>
+#include <thread_manager.h>
 #include<time.h>
 
 #define APP_LOOKUP_EXACT_MATCH          0
@@ -689,12 +690,15 @@ send_burst(struct thread_tx_conf *qconf, uint16_t n, uint8_t port)
 	queueid = qconf->tx_queue_id[port];
 	m_table = (struct rte_mbuf **)qconf->tx_mbufs[port].m_table;
 
-	ret = rte_eth_tx_burst(port, queueid, m_table, n);
-	if (unlikely(ret < n)) {
-		do {
-			rte_pktmbuf_free(m_table[ret]);
-		} while (++ret < n);
-	}
+//	ret = rte_eth_tx_burst(port, queueid, m_table, n);
+//	printf("try to send burst\n");
+	ret = nf_eth_tx_burst(port, queueid, m_table, n);
+//	printf("return ret=%d\n", ret);
+//	if (unlikely(ret < n)) {
+//		do {
+//			rte_pktmbuf_free(m_table[ret]);
+//		} while (++ret < n);
+//	}
 
 	return 0;
 }
@@ -717,8 +721,9 @@ send_single_packet(struct rte_mbuf *m, uint8_t port)
 
 	/* enough pkts to be sent */
 	if (unlikely(len == MAX_PKT_BURST)) {
-		send_burst(qconf, MAX_PKT_BURST, port);
 		len = 0;
+		send_burst(qconf, MAX_PKT_BURST, port);
+
 	}
 
 	qconf->tx_mbufs[port].len = len;
@@ -2096,7 +2101,7 @@ lthread_tx_per_ring(void *dummy)
 		 * Read packet from ring
 		 */
 		SET_CPU_BUSY(tx_conf, CPU_POLL);
-		nb_rx = rte_ring_sc_dequeue_burst(ring, (void **)pkts_burst,
+		nb_rx = nf_ring_dequeue_burst(ring, (void **)pkts_burst,
 				MAX_PKT_BURST, NULL);
 		SET_CPU_IDLE(tx_conf, CPU_POLL);
 
@@ -2106,9 +2111,7 @@ lthread_tx_per_ring(void *dummy)
 			portid = pkts_burst[0]->port;
 			process_burst(pkts_burst, nb_rx, portid);
 			SET_CPU_IDLE(tx_conf, CPU_PROCESS);
-			lthread_yield();
-		} else
-			lthread_cond_wait(ready, 0);
+		}
 
 	}
 }
@@ -2158,9 +2161,10 @@ lthread_tx(void *args)
 			if (tx_conf->tx_mbufs[portid].len == 0)
 				continue;
 			SET_CPU_BUSY(tx_conf, CPU_PROCESS);
+			tx_conf->tx_mbufs[portid].len = 0;
 			send_burst(tx_conf, tx_conf->tx_mbufs[portid].len, portid);
 			SET_CPU_IDLE(tx_conf, CPU_PROCESS);
-			tx_conf->tx_mbufs[portid].len = 0;
+//			tx_conf->tx_mbufs[portid].len = 0;
 		}
 
 	}
@@ -2207,8 +2211,8 @@ lthread_rx(void *dummy)
 	/*
 	 * Init all condition variables (one per rx thread)
 	 */
-	for (i = 0; i < rx_conf->n_rx_queue; i++)
-		lthread_cond_init(NULL, &rx_conf->ready[i], NULL);
+//	for (i = 0; i < rx_conf->n_rx_queue; i++)
+//		lthread_cond_init(NULL, &rx_conf->ready[i], NULL);
 
 	worker_id = 0;
 
@@ -2227,11 +2231,10 @@ lthread_rx(void *dummy)
 			queueid = rx_conf->rx_queue_list[i].queue_id;
 
 			SET_CPU_BUSY(rx_conf, CPU_POLL);
-			nb_rx = rte_eth_rx_burst(portid, queueid, pkts_burst,
-//				MAX_PKT_BURST);
-				tempsize);
+//			nb_rx = rte_eth_rx_burst(portid, queueid, pkts_burst, tempsize);
+			nb_rx = nf_eth_rx_burst(portid, queueid, pkts_burst, tempsize);
 			SET_CPU_IDLE(rx_conf, CPU_POLL);
-//begin
+
 			int g, h;
 			long long result = 0;
 			long long multiply = 1;
@@ -2246,51 +2249,21 @@ lthread_rx(void *dummy)
 				}
 
 			}
-//end
 			if(multiply == 1024 && result == 40960000)
 				RTE_LOG(INFO, L3FWD, "result=%d \n", result);
 
 
 			if (nb_rx != 0) {
 				worker_id = (worker_id + 1) % rx_conf->n_ring;
-				old_len = len[worker_id];
-
 				SET_CPU_BUSY(rx_conf, CPU_PROCESS);
-				ret = rte_ring_sp_enqueue_burst(
+				ret = nf_ring_enqueue_burst(
 						rx_conf->ring[worker_id],
 						(void **) pkts_burst,
 						nb_rx, NULL);
 
-				new_len = old_len + ret;
-
-//				if (new_len >= BURST_SIZE) {
-				if (new_len >= tempsize) {
-					lthread_cond_signal(rx_conf->ready[worker_id]);
-					new_len = 0;
-				}
-
-				len[worker_id] = new_len;
-				if (unlikely(ret < nb_rx)) {
-					uint32_t k;
-
-					for (k = ret; k < nb_rx; k++) {
-						struct rte_mbuf *m = pkts_burst[k];
-
-						rte_pktmbuf_free(m);
-					}
-				}
 				SET_CPU_IDLE(rx_conf, CPU_PROCESS);
-				//add
-//				cnt++;
-//				if(rx_conf->conf.thread_id == 0 && cnt == 10000){
-//					printf("migrate rx %d from core %d to core %d\n", rx_conf->conf.thread_id, rte_lcore_id(), (rte_lcore_id()+1)%2);
-//					lthread_set_affinity((rte_lcore_id()+1)%2);
-//				}
-
 
 			}
-
-			lthread_yield();
 		}
 	}
 }
@@ -2423,8 +2396,8 @@ pthread_tx(void *dummy)
 			for (portid = 0; portid < RTE_MAX_ETHPORTS; portid++) {
 				if (tx_conf->tx_mbufs[portid].len == 0)
 					continue;
-				send_burst(tx_conf, tx_conf->tx_mbufs[portid].len, portid);
 				tx_conf->tx_mbufs[portid].len = 0;
+				send_burst(tx_conf, tx_conf->tx_mbufs[portid].len, portid);
 			}
 			SET_CPU_IDLE(tx_conf, CPU_PROCESS);
 

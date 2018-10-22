@@ -45,6 +45,6 @@ endif
 
 VPATH := $(MKFILE_PATH) $(ARCH_PATH)
 
-SRCS-y += lthread.c lthread_sched.c lthread_cond.c lthread_tls.c lthread_mutex.c lthread_diag.c ctx.c
+SRCS-y += lthread.c lthread_sched.c lthread_cond.c lthread_tls.c lthread_mutex.c lthread_diag.c ctx.c thread_manager.c
 
 INCLUDES += -I$(MKFILE_PATH) -I$(ARCH_PATH)
