@@ -691,7 +691,7 @@ send_burst(struct thread_tx_conf *qconf, uint16_t n, uint8_t port)
 	m_table = (struct rte_mbuf **)qconf->tx_mbufs[port].m_table;
 
 //	ret = rte_eth_tx_burst(port, queueid, m_table, n);
-//	printf("try to send burst\n");
+//	printf("try to send burst %d\n", n);
 	ret = nf_eth_tx_burst(port, queueid, m_table, n);
 //	printf("return ret=%d\n", ret);
 //	if (unlikely(ret < n)) {
@@ -722,6 +722,7 @@ send_single_packet(struct rte_mbuf *m, uint8_t port)
 	/* enough pkts to be sent */
 	if (unlikely(len == MAX_PKT_BURST)) {
 		len = 0;
+		printf("single call send bust %d\n", MAX_PKT_BURST);
 		send_burst(qconf, MAX_PKT_BURST, port);
 
 	}
@@ -751,12 +752,13 @@ send_packetsx4(uint8_t port,
 	 * then send them straightway.
 	 */
 	if (num >= MAX_TX_BURST && len == 0) {
-		n = rte_eth_tx_burst(port, qconf->tx_queue_id[port], m, num);
-		if (unlikely(n < num)) {
-			do {
-				rte_pktmbuf_free(m[n]);
-			} while (++n < num);
-		}
+//		n = rte_eth_tx_burst(port, qconf->tx_queue_id[port], m, num);
+		n = nf_eth_tx_burst(port, qconf->tx_queue_id[port], m, num);
+//		if (unlikely(n < num)) {
+//			do {
+//				rte_pktmbuf_free(m[n]);
+//			} while (++n < num);
+//		}
 		return;
 	}
 
@@ -955,6 +957,7 @@ static inline void l3fwd_simple_forward(struct rte_mbuf *m, uint8_t portid)
 #define EXCLUDE_7TH_PKT 0xbf
 #define EXCLUDE_8TH_PKT 0x7f
 
+//send pkts
 static inline void
 simple_ipv4_fwd_8pkts(struct rte_mbuf *m[8], uint8_t portid)
 {
@@ -1299,6 +1302,7 @@ simple_ipv6_fwd_8pkts(struct rte_mbuf *m[8], uint8_t portid)
 }
 #endif /* APP_LOOKUP_METHOD */
 
+//send pkts
 static __rte_always_inline void
 l3fwd_simple_forward(struct rte_mbuf *m, uint8_t portid)
 {
@@ -1789,6 +1793,7 @@ process_burst(struct rte_mbuf *pkts_burst[MAX_PKT_BURST], int nb_rx,
 				pkts_burst[j+6]->packet_type &
 				pkts_burst[j+7]->packet_type;
 			if (pkt_type & RTE_PTYPE_L3_IPV4) {
+//			printf("call simple ipv4 fwd\n");
 				simple_ipv4_fwd_8pkts(&pkts_burst[j], portid);
 			} else if (pkt_type &
 				RTE_PTYPE_L3_IPV6) {
@@ -2088,13 +2093,15 @@ lthread_tx_per_ring(void *dummy)
 	/*
 	 * Move this lthread to lcore
 	 */
-	lthread_set_affinity(tx_conf->conf.lcore_id);
+	lthread_set_affinity(NULL, tx_conf->conf.lcore_id);
 
 	RTE_LOG(INFO, L3FWD, "entering main tx loop on lcore %u\n", rte_lcore_id());
 
 	nb_rx = 0;
-//	int cnt = 0;
-	rte_atomic16_inc(&tx_counter);
+    rte_atomic16_inc(&tx_counter);
+
+    //for test
+	int cnt = 0;
 	while (1) {
 
 		/*
@@ -2111,6 +2118,12 @@ lthread_tx_per_ring(void *dummy)
 			portid = pkts_burst[0]->port;
 			process_burst(pkts_burst, nb_rx, portid);
 			SET_CPU_IDLE(tx_conf, CPU_PROCESS);
+            //for test
+            cnt++;
+//            if(cnt == 500 && tx_conf->conf.thread_id !=0 ){
+//                cnt = 0;
+//                printf("tx %d on core %d process %d pkt\n", tx_conf->conf.thread_id, rte_lcore_id(), nb_rx);
+//            }
 		}
 
 	}
@@ -2137,11 +2150,13 @@ lthread_tx(void *args)
 	/*
 	 * Move this lthread to the selected lcore
 	 */
-	lthread_set_affinity(tx_conf->conf.lcore_id);
+	lthread_set_affinity(NULL,tx_conf->conf.lcore_id);
 
 	/*
 	 * Spawn tx readers (one per input ring)
 	 */
+	//tx ring thread tid: 10s
+    //TODO
 	lthread_create(&lt, tx_conf->conf.lcore_id, lthread_tx_per_ring,
 			(void *)tx_conf);
 
@@ -2150,6 +2165,8 @@ lthread_tx(void *args)
 	RTE_LOG(INFO, L3FWD, "Entering Tx main loop on lcore %u\n", lcore_id);
 
 	tx_conf->conf.cpu_id = sched_getcpu();
+    //for test
+    int cnt = 0;
 	while (1) {
 
 		lthread_sleep(BURST_TX_DRAIN_US * 1000);
@@ -2157,14 +2174,19 @@ lthread_tx(void *args)
 		/*
 		 * TX burst queue drain
 		 */
+//        cnt++;
+
+//		continue;
 		for (portid = 0; portid < RTE_MAX_ETHPORTS; portid++) {
 			if (tx_conf->tx_mbufs[portid].len == 0)
 				continue;
 			SET_CPU_BUSY(tx_conf, CPU_PROCESS);
-			tx_conf->tx_mbufs[portid].len = 0;
+			//FIXME:DPDK set len to zero after sen_burst, but bug here, bug didn't appera in DPDK lthread
+//			tx_conf->tx_mbufs[portid].len = 0;
+//			printf("call send_burst %d\n", tx_conf->tx_mbufs[portid].len);
 			send_burst(tx_conf, tx_conf->tx_mbufs[portid].len, portid);
 			SET_CPU_IDLE(tx_conf, CPU_PROCESS);
-//			tx_conf->tx_mbufs[portid].len = 0;
+			tx_conf->tx_mbufs[portid].len = 0;
 		}
 
 	}
@@ -2189,16 +2211,16 @@ lthread_rx(void *dummy)
 	/*
 	 * Move this lthread to lcore
 	 */
-	lthread_set_affinity(rx_conf->conf.lcore_id);
+	lthread_set_affinity(NULL, rx_conf->conf.lcore_id);
 
-	long long cnt = 0;
+//	long long cnt = 0;
 
 	if (rx_conf->n_rx_queue == 0) {
 		RTE_LOG(INFO, L3FWD, "lcore %u has nothing to do\n", rte_lcore_id());
 		return;
 	}
 
-	RTE_LOG(INFO, L3FWD, "Entering main Rx loop on lcore %u\n", rte_lcore_id());
+	RTE_LOG(INFO, L3FWD, "Entering main Rx %d loop on lcore %u\n",rx_conf->conf.thread_id, rte_lcore_id());
 
 	for (i = 0; i < rx_conf->n_rx_queue; i++) {
 
@@ -2220,6 +2242,8 @@ lthread_rx(void *dummy)
 	rte_atomic16_inc(&rx_counter);
 	//temp
 	int tempsize = MAX_PKT_BURST;
+	uint64_t cnt = 0;
+    uint16_t core_id;
 	while (1) {
 
 		/*
@@ -2229,12 +2253,16 @@ lthread_rx(void *dummy)
 
 			portid = rx_conf->rx_queue_list[i].port_id;
 			queueid = rx_conf->rx_queue_list[i].queue_id;
+            core_id = rte_lcore_id();
 
 			SET_CPU_BUSY(rx_conf, CPU_POLL);
 //			nb_rx = rte_eth_rx_burst(portid, queueid, pkts_burst, tempsize);
-			nb_rx = nf_eth_rx_burst(portid, queueid, pkts_burst, tempsize);
-			SET_CPU_IDLE(rx_conf, CPU_POLL);
 
+			nb_rx = nf_eth_rx_burst(portid, queueid, pkts_burst, tempsize);
+
+			SET_CPU_IDLE(rx_conf, CPU_POLL);
+//			printf("rx %d recv packet\n", rx_conf->conf.thread_id);
+//			printf("rx %d computing\n", rx_conf->conf.thread_id);
 			int g, h;
 			long long result = 0;
 			long long multiply = 1;
@@ -2253,13 +2281,25 @@ lthread_rx(void *dummy)
 				RTE_LOG(INFO, L3FWD, "result=%d \n", result);
 
 
+//			printf("rx %d on core %d, process %d pkts\n", rx_conf->conf.thread_id, core_id, nb_rx);
+
 			if (nb_rx != 0) {
+                //for test
+                cnt++;
+
 				worker_id = (worker_id + 1) % rx_conf->n_ring;
 				SET_CPU_BUSY(rx_conf, CPU_PROCESS);
-				ret = nf_ring_enqueue_burst(
+
+//                if(cnt == 500 && rx_conf->conf.thread_id != 1) {
+//                if(cnt == 500) {
+//                    cnt = 0;
+//                    printf("rx %d on core %d, process %d pkts\n", rx_conf->conf.thread_id, core_id, nb_rx);
+//                }
+                ret = nf_ring_enqueue_burst(
 						rx_conf->ring[worker_id],
 						(void **) pkts_burst,
 						nb_rx, NULL);
+//				printf("finish\n");
 
 				SET_CPU_IDLE(rx_conf, CPU_PROCESS);
 
@@ -2287,6 +2327,8 @@ lthread_spawner(__rte_unused void *arg) {
 	 */
 	for (i = 0; i < n_rx_thread; i++) {
 		rx_thread[i].conf.thread_id = i;
+		//rx thread tid: 20s
+//		rx_thread[i].conf.thread_id =
 		lthread_create(&lt[n_thread], -1, lthread_rx,
 				(void *)&rx_thread[i]);
 		n_thread++;
@@ -2305,6 +2347,7 @@ lthread_spawner(__rte_unused void *arg) {
 	 */
 	for (i = 0; i < n_tx_thread; i++) {
 		tx_thread[i].conf.thread_id = i;
+//		tx_thread[i].conf.thread_id =
 		lthread_create(&lt[n_thread], -1, lthread_tx,
 				(void *)&tx_thread[i]);
 		n_thread++;
@@ -2326,6 +2369,7 @@ static int
 lthread_master_spawner(__rte_unused void *arg) {
 	struct lthread *lt;
 	int lcore_id = rte_lcore_id();
+    long long thread_id;
 
 	RTE_PER_LCORE(lcore_conf) = &lcore_conf[lcore_id];
 	lthread_create(&lt, -1, lthread_spawner, NULL);
@@ -2342,6 +2386,7 @@ sched_spawner(__rte_unused void *arg) {
 	struct lthread *lt;
 	int lcore_id = rte_lcore_id();
 
+
 #if (APP_CPU_LOAD)
 	if (lcore_id == cpu_load_lcore_id) {
 		cpu_load_collector(arg);
@@ -2350,6 +2395,7 @@ sched_spawner(__rte_unused void *arg) {
 #endif /* APP_CPU_LOAD */
 
 	RTE_PER_LCORE(lcore_conf) = &lcore_conf[lcore_id];
+	//tid=1008: spawner
 	lthread_create(&lt, -1, lthread_null, NULL);
 	lthread_run();
 
@@ -2363,6 +2409,9 @@ pthread_tx(void *dummy)
 	struct rte_mbuf *pkts_burst[MAX_PKT_BURST];
 	uint64_t prev_tsc, diff_tsc, cur_tsc;
 	int nb_rx;
+	int len, ret;
+	struct rte_mbuf **m_table;
+	uint16_t queueid;
 	uint8_t portid;
 	struct thread_tx_conf *tx_conf;
 
@@ -2396,8 +2445,17 @@ pthread_tx(void *dummy)
 			for (portid = 0; portid < RTE_MAX_ETHPORTS; portid++) {
 				if (tx_conf->tx_mbufs[portid].len == 0)
 					continue;
+				queueid = tx_conf->tx_queue_id[portid];
+				m_table = tx_conf->tx_mbufs[portid].m_table;
+				len = tx_conf->tx_mbufs[portid].len;
+				ret = rte_eth_tx_burst(portid, queueid, m_table, len);
+				if (unlikely(ret < len)) {
+					do {
+						rte_pktmbuf_free(m_table[ret]);
+					} while (++ret < len);
+				}
 				tx_conf->tx_mbufs[portid].len = 0;
-				send_burst(tx_conf, tx_conf->tx_mbufs[portid].len, portid);
+
 			}
 			SET_CPU_IDLE(tx_conf, CPU_PROCESS);
 
@@ -2419,6 +2477,7 @@ pthread_tx(void *dummy)
 //		clock_gettime(CLOCK_REALTIME, &start);
 		SET_CPU_BUSY(tx_conf, CPU_PROCESS);
 		portid = pkts_burst[0]->port;
+		//FIXME: add a version of process for pthread
 		process_burst(pkts_burst, nb_rx, portid);
 		SET_CPU_IDLE(tx_conf, CPU_PROCESS);
 
@@ -2474,6 +2533,8 @@ pthread_rx(void *dummy)
 			queueid = rx_conf->rx_queue_list[i].queue_id;
 
 			SET_CPU_BUSY(rx_conf, CPU_POLL);
+//			printf("pthread rx call rte_eth_rx from pot %d\n",  portid);
+
 			nb_rx = rte_eth_rx_burst(portid, queueid, pkts_burst,
 //				MAX_PKT_BURST);
 				tempsize);
@@ -2512,7 +2573,7 @@ pthread_rx(void *dummy)
 				continue;
 			}
 
-//			printf("recv % packetd from pot %d\n", nb_rx, portid);
+			printf("pthread rx recv %d packetd from pot %d\n", nb_rx, portid);
 			SET_CPU_BUSY(rx_conf, CPU_PROCESS);
 			worker_id = (worker_id + 1) % rx_conf->n_ring;
 			n = rte_ring_sp_enqueue_burst(rx_conf->ring[worker_id],
