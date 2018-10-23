@@ -75,6 +75,7 @@
 #include <sys/mman.h>
 
 #include <rte_log.h>
+#include <rte_atomic.h>
 #include <ctx.h>
 #include <stack.h>
 
@@ -85,6 +86,8 @@
 #include "lthread_objcache.h"
 #include "lthread_diag.h"
 
+//static long long thread_counter = 0;
+rte_atomic16_t thread_counter;  /**< Number of  threads */
 
 /*
  * This function gets called after an lthread function has returned.
@@ -172,18 +175,24 @@ static void _lthread_exec(void *arg)
  */
 void
 _lthread_init(struct lthread *lt,
-	lthread_func_t fun, void *arg, lthread_exit_func exit_handler)
+	lthread_func_t fun, void *arg, lthread_exit_func exit_handler,   uint16_t thread_id)
 {
 
+	printf("init lt %d\n", lt->thread_id);
 	/* set ctx func and args */
 	lt->fun = fun;
 	lt->arg = arg;
+	//FIXME: add for test
+	lt->thread_id = thread_id;
 	lt->exit_handler = exit_handler;
 
 	/* set initial state */
 	lt->birth = _sched_now();
 	lt->state = BIT(ST_LT_INIT);
 	lt->join = LT_JOIN_INITIAL;
+
+	/* set should migrtae = 0 */
+	lt->should_migrate = 0;
 }
 
 /*
@@ -215,8 +224,11 @@ lthread_create(struct lthread **new_lt, int lcore_id,
 		return POSIX_ERRNO(EINVAL);
 
 	struct lthread *lt = NULL;
+	int tid = rte_atomic16_read(&thread_counter);
+	rte_atomic16_inc(&thread_counter);
 
 	if (THIS_SCHED == NULL) {
+		printf("> no scheduler in core %d, start one\n", lcore_id);
 		THIS_SCHED = _lthread_sched_create(0);
 		if (THIS_SCHED == NULL) {
 			perror("Failed to create scheduler");
@@ -233,7 +245,7 @@ lthread_create(struct lthread **new_lt, int lcore_id,
 	lt->root_sched = THIS_SCHED;
 
 	/* set the function args and exit handlder */
-	_lthread_init(lt, fun, arg, _lthread_exit_handler);
+	_lthread_init(lt, fun, arg, _lthread_exit_handler, tid);
 
 	/* put it in the ready queue */
 	*new_lt = lt;
@@ -245,7 +257,8 @@ lthread_create(struct lthread **new_lt, int lcore_id,
 
 	rte_wmb();
 	_ready_queue_insert(_lthread_sched_get(lcore_id), lt);
-	return 0;
+	printf("create and insert lt %d into core %d\n", lt->thread_id, lcore_id);
+	return tid;
 }
 
 /*
@@ -384,15 +397,40 @@ void lthread_sleep_clks(uint64_t clks)
 
 /*
  * Requeue the current thread to the back of the ready queue
+ * TODO:尝试在这里调迁移函数
  */
 void lthread_yield(void)
 {
 	struct lthread *lt = THIS_LTHREAD;
+    uint8_t should_migrate = lt->should_migrate;
+//	struct lthread_sched *sched = THIS_SCHED;
 
 	DIAG_EVENT(lt, LT_DIAG_LTHREAD_YIELD, 0, 0);
 
-	_ready_queue_insert(THIS_SCHED, lt);
-	ctx_switch(&(THIS_SCHED)->ctx, &lt->ctx);
+//	if(lt->thread_id == 32) {
+//        printf("lt %d see THIS_SCHED = %d\n", lt->thread_id, THIS_SCHED->lcore_id);
+//    }
+    if(should_migrate == 0) {
+//        if(lt->thread_id == 32) {
+//            printf("lt %d insert it to %d reay and switch to scheduler\n", lt->thread_id, THIS_SCHED->lcore_id);
+//        }
+        _ready_queue_insert(THIS_SCHED, lt);
+        ctx_switch(&(THIS_SCHED)->ctx, &lt->ctx);
+    }
+    else{
+        int dst_core = lt->should_migrate;
+//        printf("lt %d found it should migrate to core %d\n, dont insert itself to current scheduler ready\n",dst_core, lt->thread_id);
+        //FIXME:lt->should_migrate应该让scheduler还是线程自己置0?多个写者会不会有问题？
+        lt->should_migrate = 0;
+//		printf("thread %d migrtae from core %d to core %d\n", lt->thread_id, sched->lcore_id, schedcore[dst_core]->lcore_id);
+        lthread_set_affinity(lt, dst_core);
+    }
+
+//    if(lt->thread_id == 32) {
+//        printf("lt %d get control\n", lt->thread_id);
+//        printf("lt %d switch to core %d\n", lt->thread_id, THIS_SCHED->lcore_id);
+//    }
+//	ctx_switch(&(THIS_SCHED)->ctx, &lt->ctx);
 }
 
 /*

@@ -96,7 +96,7 @@ lthread_sched *_lthread_sched_create(size_t stack_size);
 
 void
 _lthread_init(struct lthread *lt,
-	      lthread_func_t fun, void *arg, lthread_exit_func exit_handler);
+	      lthread_func_t fun, void *arg, lthread_exit_func exit_handler, uint16_t thread_id);
 
 void _lthread_set_stack(struct lthread *lt, void *stack, size_t stack_size);
 

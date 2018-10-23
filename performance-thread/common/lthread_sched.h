@@ -118,6 +118,10 @@ static inline void
 _affinitize(void)
 {
 	struct lthread *lt = THIS_LTHREAD;
+//	printf("callee _affinizie\n");
+	//FIXME:bug here, crash at here
+//	printf("lt %d\n", lt->thread_id);
+//	printf("core %d\n", THIS_SCHED->lcore_id);
 
 	DIAG_EVENT(lt, LT_DIAG_LTHREAD_SUSPENDED, 0, 0);
 	ctx_switch(&(THIS_SCHED)->ctx, &lt->ctx);

@@ -20,8 +20,10 @@ unsigned nf_eth_rx_burst(uint16_t port_id, uint16_t queue_id,
                                                     struct rte_mbuf **rx_bufs, const uint16_t burst_size){
 
     uint16_t nb_rx = rte_eth_rx_burst(port_id, queue_id, rx_bufs, burst_size);
-    if (unlikely(nb_rx == 0))
+    if (unlikely(nb_rx == 0)) {
+//     printf("call yield\n");
         lthread_yield();
+    }
     //TODO: 基于阈值
     return nb_rx;
 }
@@ -31,7 +33,10 @@ unsigned nf_eth_rx_burst(uint16_t port_id, uint16_t queue_id,
  */
 uint16_t nf_eth_tx_burst(uint16_t 	port_id, uint16_t queue_id,
                                 struct rte_mbuf **tx_pkts, uint16_t nb_pkts){
+//    printf("requie to send %d pkt\n", nb_pkts);
+
     uint16_t nb_tx = rte_eth_tx_burst(port_id, queue_id, tx_pkts, nb_pkts);
+//    printf("actully send %d pkts\n", nb_tx);
     if (unlikely(nb_tx < nb_pkts)) {
         do {
             rte_pktmbuf_free(tx_pkts[nb_tx]);
@@ -100,6 +105,7 @@ unsigned nf_ring_enqueue_burst(struct rte_ring *tx_ring, void *const *obj_table,
             rte_pktmbuf_free(m);
         }
     }
+//    printf("call yield\n");
     lthread_yield();
     return nb_tx;
 

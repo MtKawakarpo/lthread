@@ -404,7 +404,7 @@ void lthread_yield(void);
   *  0   success we are now running on the specified core
   *  EINVAL the destination lcore was not valid
   */
-int lthread_set_affinity(unsigned lcore);
+int lthread_set_affinity(struct lthread *lt, unsigned lcore);
 
 /**
   * Return the current lthread

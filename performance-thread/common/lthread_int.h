@@ -178,12 +178,17 @@ struct lthread {
 
 	uint64_t state;				/* current lthread state */
 
+	//add for nfv
+	uint8_t should_migrate;
+
 	struct lthread_sched *sched;		/* current scheduler */
 	void *stack;				/* ptr to actual stack */
 	size_t stack_size;			/* current stack_size */
 	size_t last_stack_size;			/* last yield  stack_size */
 	lthread_func_t fun;			/* func ctx is running */
 	void *arg;				/* func args passed to func */
+	//FIXME:add for test, should be deleted later
+	int thread_id;
 	void *per_lthread_data;			/* per lthread user data */
 	lthread_exit_func exit_handler;		/* called when thread exits */
 	uint64_t birth;				/* time lthread was born */

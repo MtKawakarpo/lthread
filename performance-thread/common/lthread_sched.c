@@ -109,6 +109,8 @@ static rte_atomic16_t active_schedulers;
 
 /* one scheduler per lcore */
 RTE_DEFINE_PER_LCORE(struct lthread_sched *, this_sched) = NULL;
+RTE_DEFINE_PER_LCORE(int, counter) = 0;
+#define COUNTER RTE_PER_LCORE(counter)
 
 struct lthread_sched *schedcore[LTHREAD_MAX_LCORES];
 
@@ -384,6 +386,7 @@ static inline void _lthread_resume(struct lthread *lt)
 	sched->current_lthread = lt;
 
 	if (state & (BIT(ST_LT_CANCELLED) | BIT(ST_LT_EXITED))) {
+		printf("lt state = detach | cancle | exit\n");
 		/* if detached we can free the thread now */
 		if (state & BIT(ST_LT_DETACH)) {
 			_lthread_free(lt);
@@ -393,6 +396,7 @@ static inline void _lthread_resume(struct lthread *lt)
 	}
 
 	if (state & BIT(ST_LT_INIT)) {
+		printf("lt state = init\n");
 		/* first time this thread has been run */
 		/* assign thread to this scheduler */
 		lt->sched = THIS_SCHED;
@@ -415,13 +419,22 @@ static inline void _lthread_resume(struct lthread *lt)
 	DIAG_EVENT(lt, LT_DIAG_LTHREAD_RESUMED, init, lt);
 
 	/* switch to the new thread */
+//	if(sched->lcore_id == 1 && lt->thread_id == 32)
+//		printf("core %d switch to lt %d->ctx\n", sched->lcore_id, lt->thread_id);
 	ctx_switch(&lt->ctx, &sched->ctx);
+    //FIXME:thread call yield() return here
+//    if(lt->thread_id == 32)
+//        printf("lt %d return core %d\n", lt->thread_id, sched->lcore_id);
 
 	/* If posting to a queue that could be read by another lcore
 	 * we defer the queue write till now to ensure the context has been
 	 * saved before the other core tries to resume it
 	 * This applies to blocking on mutex, cond, and to set_affinity
 	 */
+
+	//check if it should be migrated
+//    printf("return core %d\n", sched->lcore_id);
+
 	//TODO:
 	// possibility 1: 检查该线程是否被迁移到一个核，若是则lt->pending_wr_queue为迁移对象dst core的pready队列
 	//possibility 2: 若线程等待mutex/con，则lt->pending_wr_queue为该mutex/con的blocked队列
@@ -432,6 +445,7 @@ static inline void _lthread_resume(struct lthread *lt)
 
 		/* queue the current thread to the specified queue */
 		_lthread_queue_insert_mp(dest, lt);
+//		printf("read lt pending wr queue not null ,move to dest\n");
 	}
 
 	sched->current_lthread = NULL;
@@ -507,7 +521,47 @@ static inline void _lthread_schedulers_sync_stop(void)
 
 }
 
+/*
+ * add for nfv
+ * update drop rate vector of all nf threads
+ */
+uint8_t update_dr_vector(void){
+	uint8_t ret = 0;
 
+	return ret;
+}
+/*
+ * add for nfv
+ * check drop rate of nf threads
+ */
+uint16_t check_nf_droprate(unsigned core_id, struct lthread *lt){
+//	static int counter = 0;
+	COUNTER ++;
+	uint16_t drop_rate = 0;
+//	printf("counter = %d\n", COUNTER);
+	if(COUNTER == 1000&&core_id == 0){
+//		COUNTER = 0;
+		update_dr_vector();
+		drop_rate = 200;
+		printf("core % counter = %d\n",core_id, COUNTER);
+	}else{
+		drop_rate = 0;
+	}
+
+	/* TODO:check drop rate of a lthread, add thread id to lthread struct */
+	return drop_rate;
+
+}
+/*
+ * add for nfv
+ * request resource from CM
+ */
+void add_res_manage(void){
+	update_dr_vector();
+	/*
+	 * TODO: call int add_one_core(uint16_t priority, uint64_t drop_rate)
+	 */
+}
 /*
  * Run the lthread scheduler
  * This loop is the heart of the system
@@ -517,6 +571,7 @@ void lthread_run(void)
 
 	struct lthread_sched *sched = THIS_SCHED;
 	struct lthread *lt = NULL;
+	uint16_t drop_rate = 0;
 
 	RTE_LOG(INFO, LTHREAD,
 		"starting scheduler %p on lcore %u phys core %u\n",
@@ -542,11 +597,31 @@ void lthread_run(void)
 		rte_timer_manage();
 
 		lt = _lthread_queue_poll(sched->ready);
-		if (lt != NULL)
+		if (lt != NULL) {
+//			if(sched->lcore_id == 1 && lt->thread_id == 30)
+//				printf("core %d get a lt %dfrom ready\n", sched->lcore_id, lt->thread_id);
+
+			// FIXME:for nfv test, modify later
+//			printf("core %d check for drop rate\n", sched->lcore_id);
+//			if(check_nf_droprate(sched->lcore_id, lt)>0){
+//				lt->should_migrate = 1;
+//				printf("scheduler mark lt %d to should migrate to 1\n", lt->thread_id);
+//			}
+//            if(lt->thread_id == 32 && sched->lcore_id == 1){
+//                printf("core %d get lt %d from ready\n", sched->lcore_id, lt->thread_id);
+//            }
+//			if(sched->lcore_id!=0)
+//				printf("core %d resum a lt %d\n", sched->lcore_id,lt->thread_id);
 			_lthread_resume(lt);
+//			if(sched->lcore_id!=0)
+//				printf("core %d finish lt %d\n", sched->lcore_id, lt->thread_id);
+
+		}
 		lt = _lthread_queue_poll(sched->pready);
-		if (lt != NULL)
+		if (lt != NULL) {
+			printf("core %d get a lt %d from pready queue\n", sched->lcore_id, lt->thread_id);
 			_lthread_resume(lt);
+		}
 	}
 
 
@@ -577,9 +652,11 @@ struct lthread_sched *_lthread_sched_get(int lcore_id)
  * migrate the current thread to another scheduler running
  * on the specified lcore.
  */
-int lthread_set_affinity(unsigned lcoreid)
+int lthread_set_affinity(struct lthread *lt, unsigned lcoreid)
 {
-	struct lthread *lt = THIS_LTHREAD;
+	if(lt == NULL)
+		lt = THIS_LTHREAD;
+//	struct lthread *lt = THIS_LTHREAD;
 	struct lthread_sched *dest_sched;
 
 	if (unlikely(lcoreid > LTHREAD_MAX_LCORES))
@@ -588,6 +665,7 @@ int lthread_set_affinity(unsigned lcoreid)
 
 	DIAG_EVENT(lt, LT_DIAG_LTHREAD_AFFINITY, lcoreid, 0);
 
+//	printf("callee set_affinity\n");
 	dest_sched = schedcore[lcoreid];
 
 	if (unlikely(dest_sched == NULL))
@@ -595,8 +673,20 @@ int lthread_set_affinity(unsigned lcoreid)
 
 	if (likely(dest_sched != THIS_SCHED)) {
 		lt->sched = dest_sched;
+		printf("set lt %d to be scheduled on core %d\n", lt->thread_id, dest_sched->lcore_id);
 		lt->pending_wr_queue = dest_sched->pready;
 		_affinitize();
+		//expand
+//		struct lthread *lt2 = THIS_LTHREAD;
+//		printf("callee _affinizie\n");
+		//FIXME:bug here, crash at here
+//		printf("lt %d\n", lt->thread_id);
+//		printf("core %d\n", THIS_SCHED->lcore_id);
+
+//		DIAG_EVENT(lt, LT_DIAG_LTHREAD_SUSPENDED, 0, 0);
+//		ctx_switch(&(THIS_SCHED)->ctx, &lt2->ctx);
+		//end
+//		printf("finish _affinize\n");
 		return 0;
 	}
 	return 0;
