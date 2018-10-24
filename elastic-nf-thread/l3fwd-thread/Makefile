@@ -44,7 +44,7 @@ APP = l3fwd-thread
 # all source are stored in SRCS-y
 SRCS-y := main.c
 
-include $(LTHREAD_SDK)/performance-thread/common/common.mk
+include $(LTHREAD_SDK)/elastic-nf-thread/nfthread-lib/common.mk
 
 CFLAGS += -O3 -g $(USER_FLAGS) $(INCLUDES) $(WERROR_FLAGS)
 
