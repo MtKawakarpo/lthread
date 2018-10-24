@@ -103,14 +103,14 @@ check_ptype(int portid)
 	int ipv4 = 0, ipv6 = 0;
 
 	ret = rte_eth_dev_get_supported_ptypes(portid, RTE_PTYPE_L3_MASK, NULL,
-			0);
+										   0);
 	if (ret <= 0)
 		return 0;
 
 	uint32_t ptypes[ret];
 
 	ret = rte_eth_dev_get_supported_ptypes(portid, RTE_PTYPE_L3_MASK,
-			ptypes, ret);
+										   ptypes, ret);
 	for (i = 0; i < ret; ++i) {
 		if (ptypes[i] & RTE_PTYPE_L3_IPV4)
 			ipv4 = 1;
@@ -143,8 +143,8 @@ parse_ptype(struct rte_mbuf *m)
 
 static uint16_t
 cb_parse_ptype(__rte_unused uint8_t port, __rte_unused uint16_t queue,
-		struct rte_mbuf *pkts[], uint16_t nb_pkts,
-		__rte_unused uint16_t max_pkts, __rte_unused void *user_param)
+			   struct rte_mbuf *pkts[], uint16_t nb_pkts,
+			   __rte_unused uint16_t max_pkts, __rte_unused void *user_param)
 {
 	unsigned int i;
 
@@ -297,15 +297,15 @@ struct rx_thread_params {
 
 static struct rx_thread_params rx_thread_params_array[MAX_LCORE_PARAMS];
 static struct rx_thread_params rx_thread_params_array_default[] = {
-	{0, 0, 2, 0},
-	{0, 1, 2, 1},
-	{0, 2, 2, 2},
-	{1, 0, 2, 3},
-	{1, 1, 2, 4},
-	{1, 2, 2, 5},
-	{2, 0, 2, 6},
-	{3, 0, 3, 7},
-	{3, 1, 3, 8},
+		{0, 0, 2, 0},
+		{0, 1, 2, 1},
+		{0, 2, 2, 2},
+		{1, 0, 2, 3},
+		{1, 1, 2, 4},
+		{1, 2, 2, 5},
+		{2, 0, 2, 6},
+		{3, 0, 3, 7},
+		{3, 1, 3, 8},
 };
 
 static struct rx_thread_params *rx_thread_params =
@@ -319,15 +319,15 @@ struct tx_thread_params {
 
 static struct tx_thread_params tx_thread_params_array[MAX_LCORE_PARAMS];
 static struct tx_thread_params tx_thread_params_array_default[] = {
-	{4, 0},
-	{5, 1},
-	{6, 2},
-	{7, 3},
-	{8, 4},
-	{9, 5},
-	{10, 6},
-	{11, 7},
-	{12, 8},
+		{4, 0},
+		{5, 1},
+		{6, 2},
+		{7, 3},
+		{8, 4},
+		{9, 5},
+		{10, 6},
+		{11, 7},
+		{12, 8},
 };
 
 static struct tx_thread_params *tx_thread_params =
@@ -335,25 +335,25 @@ static struct tx_thread_params *tx_thread_params =
 static uint16_t nb_tx_thread_params = RTE_DIM(tx_thread_params_array_default);
 
 static struct rte_eth_conf port_conf = {
-	.rxmode = {
-		.mq_mode = ETH_MQ_RX_RSS,
-		.max_rx_pkt_len = ETHER_MAX_LEN,
-		.split_hdr_size = 0,
-		.header_split   = 0, /**< Header Split disabled */
-		.hw_ip_checksum = 1, /**< IP checksum offload enabled */
-		.hw_vlan_filter = 0, /**< VLAN filtering disabled */
-		.jumbo_frame    = 0, /**< Jumbo Frame Support disabled */
-		.hw_strip_crc   = 1, /**< CRC stripped by hardware */
-	},
-	.rx_adv_conf = {
-		.rss_conf = {
-			.rss_key = NULL,
-			.rss_hf = ETH_RSS_TCP,
+		.rxmode = {
+				.mq_mode = ETH_MQ_RX_RSS,
+				.max_rx_pkt_len = ETHER_MAX_LEN,
+				.split_hdr_size = 0,
+				.header_split   = 0, /**< Header Split disabled */
+				.hw_ip_checksum = 1, /**< IP checksum offload enabled */
+				.hw_vlan_filter = 0, /**< VLAN filtering disabled */
+				.jumbo_frame    = 0, /**< Jumbo Frame Support disabled */
+				.hw_strip_crc   = 1, /**< CRC stripped by hardware */
 		},
-	},
-	.txmode = {
-		.mq_mode = ETH_MQ_TX_NONE,
-	},
+		.rx_adv_conf = {
+				.rss_conf = {
+						.rss_key = NULL,
+						.rss_hf = ETH_RSS_TCP,
+				},
+		},
+		.txmode = {
+				.mq_mode = ETH_MQ_TX_NONE,
+		},
 };
 
 static struct rte_mempool *pktmbuf_pool[NB_SOCKETS];
@@ -547,25 +547,25 @@ struct ipv6_l3fwd_route {
 };
 
 static struct ipv4_l3fwd_route ipv4_l3fwd_route_array[] = {
-	{IPv4(1, 1, 1, 0), 24, 0},
-	{IPv4(2, 1, 1, 0), 24, 1},
-	{IPv4(3, 1, 1, 0), 24, 2},
-	{IPv4(4, 1, 1, 0), 24, 3},
-	{IPv4(5, 1, 1, 0), 24, 4},
-	{IPv4(6, 1, 1, 0), 24, 5},
-	{IPv4(7, 1, 1, 0), 24, 6},
-	{IPv4(8, 1, 1, 0), 24, 7},
+		{IPv4(1, 1, 1, 0), 24, 0},
+		{IPv4(2, 1, 1, 0), 24, 1},
+		{IPv4(3, 1, 1, 0), 24, 2},
+		{IPv4(4, 1, 1, 0), 24, 3},
+		{IPv4(5, 1, 1, 0), 24, 4},
+		{IPv4(6, 1, 1, 0), 24, 5},
+		{IPv4(7, 1, 1, 0), 24, 6},
+		{IPv4(8, 1, 1, 0), 24, 7},
 };
 
 static struct ipv6_l3fwd_route ipv6_l3fwd_route_array[] = {
-	{{1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1}, 48, 0},
-	{{2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1}, 48, 1},
-	{{3, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1}, 48, 2},
-	{{4, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1}, 48, 3},
-	{{5, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1}, 48, 4},
-	{{6, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1}, 48, 5},
-	{{7, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1}, 48, 6},
-	{{8, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1}, 48, 7},
+		{{1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1}, 48, 0},
+		{{2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1}, 48, 1},
+		{{3, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1}, 48, 2},
+		{{4, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1}, 48, 3},
+		{{5, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1}, 48, 4},
+		{{6, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1}, 48, 5},
+		{{7, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1}, 48, 6},
+		{{8, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1}, 48, 7},
 };
 
 #define IPV4_L3FWD_NUM_ROUTES RTE_DIM(ipv4_l3fwd_route_array)
@@ -735,7 +735,7 @@ send_single_packet(struct rte_mbuf *m, uint8_t port)
 	(ENABLE_MULTI_BUFFER_OPTIMIZE == 1))
 static __rte_always_inline void
 send_packetsx4(uint8_t port,
-	struct rte_mbuf *m[], uint32_t num)
+			   struct rte_mbuf *m[], uint32_t num)
 {
 	uint32_t len, j, n;
 	struct thread_tx_conf *qconf;
@@ -771,23 +771,23 @@ send_packetsx4(uint8_t port,
 
 	j = 0;
 	switch (n % FWDSTEP) {
-	while (j < n) {
-	case 0:
-		qconf->tx_mbufs[port].m_table[len + j] = m[j];
-		j++;
-		/* fall-through */
-	case 3:
-		qconf->tx_mbufs[port].m_table[len + j] = m[j];
-		j++;
-		/* fall-through */
-	case 2:
-		qconf->tx_mbufs[port].m_table[len + j] = m[j];
-		j++;
-		/* fall-through */
-	case 1:
-		qconf->tx_mbufs[port].m_table[len + j] = m[j];
-		j++;
-	}
+		while (j < n) {
+			case 0:
+				qconf->tx_mbufs[port].m_table[len + j] = m[j];
+			j++;
+			/* fall-through */
+			case 3:
+				qconf->tx_mbufs[port].m_table[len + j] = m[j];
+			j++;
+			/* fall-through */
+			case 2:
+				qconf->tx_mbufs[port].m_table[len + j] = m[j];
+			j++;
+			/* fall-through */
+			case 1:
+				qconf->tx_mbufs[port].m_table[len + j] = m[j];
+			j++;
+		}
 	}
 
 	len += n;
@@ -801,23 +801,23 @@ send_packetsx4(uint8_t port,
 		len = num - n;
 		j = 0;
 		switch (len % FWDSTEP) {
-		while (j < len) {
-		case 0:
-			qconf->tx_mbufs[port].m_table[j] = m[n + j];
-			j++;
-			/* fall-through */
-		case 3:
-			qconf->tx_mbufs[port].m_table[j] = m[n + j];
-			j++;
-			/* fall-through */
-		case 2:
-			qconf->tx_mbufs[port].m_table[j] = m[n + j];
-			j++;
-			/* fall-through */
-		case 1:
-			qconf->tx_mbufs[port].m_table[j] = m[n + j];
-			j++;
-		}
+			while (j < len) {
+				case 0:
+					qconf->tx_mbufs[port].m_table[j] = m[n + j];
+				j++;
+				/* fall-through */
+				case 3:
+					qconf->tx_mbufs[port].m_table[j] = m[n + j];
+				j++;
+				/* fall-through */
+				case 2:
+					qconf->tx_mbufs[port].m_table[j] = m[n + j];
+				j++;
+				/* fall-through */
+				case 1:
+					qconf->tx_mbufs[port].m_table[j] = m[n + j];
+				j++;
+			}
 		}
 	}
 
@@ -920,29 +920,29 @@ get_ipv6_dst_port(void *ipv6_hdr, uint8_t portid,
 
 static inline uint8_t
 get_ipv4_dst_port(void *ipv4_hdr, uint8_t portid,
-		lookup_struct_t *ipv4_l3fwd_lookup_struct)
+				  lookup_struct_t *ipv4_l3fwd_lookup_struct)
 {
 	uint32_t next_hop;
 
 	return (uint8_t)((rte_lpm_lookup(ipv4_l3fwd_lookup_struct,
-		rte_be_to_cpu_32(((struct ipv4_hdr *)ipv4_hdr)->dst_addr),
-		&next_hop) == 0) ? next_hop : portid);
+									 rte_be_to_cpu_32(((struct ipv4_hdr *)ipv4_hdr)->dst_addr),
+									 &next_hop) == 0) ? next_hop : portid);
 }
 
 static inline uint8_t
 get_ipv6_dst_port(void *ipv6_hdr,  uint8_t portid,
-		lookup6_struct_t *ipv6_l3fwd_lookup_struct)
+				  lookup6_struct_t *ipv6_l3fwd_lookup_struct)
 {
 	uint32_t next_hop;
 
 	return (uint8_t) ((rte_lpm6_lookup(ipv6_l3fwd_lookup_struct,
-			((struct ipv6_hdr *)ipv6_hdr)->dst_addr, &next_hop) == 0) ?
-			next_hop : portid);
+									   ((struct ipv6_hdr *)ipv6_hdr)->dst_addr, &next_hop) == 0) ?
+					  next_hop : portid);
 }
 #endif
 
 static inline void l3fwd_simple_forward(struct rte_mbuf *m, uint8_t portid)
-		__attribute__((unused));
+__attribute__((unused));
 
 #if ((APP_LOOKUP_METHOD == APP_LOOKUP_EXACT_MATCH) && \
 	(ENABLE_MULTI_BUFFER_OPTIMIZE == 1))
@@ -1315,7 +1315,7 @@ l3fwd_simple_forward(struct rte_mbuf *m, uint8_t portid)
 	if (RTE_ETH_IS_IPV4_HDR(m->packet_type)) {
 		/* Handle IPv4 headers.*/
 		ipv4_hdr = rte_pktmbuf_mtod_offset(m, struct ipv4_hdr *,
-				sizeof(struct ether_hdr));
+		sizeof(struct ether_hdr));
 
 #ifdef DO_RFC_1812_CHECKS
 		/* Check to make sure the packet is valid (RFC1812) */
@@ -1325,10 +1325,10 @@ l3fwd_simple_forward(struct rte_mbuf *m, uint8_t portid)
 		}
 #endif
 
-		 dst_port = get_ipv4_dst_port(ipv4_hdr, portid,
-			RTE_PER_LCORE(lcore_conf)->ipv4_lookup_struct);
+		dst_port = get_ipv4_dst_port(ipv4_hdr, portid,
+									 RTE_PER_LCORE(lcore_conf)->ipv4_lookup_struct);
 		if (dst_port >= RTE_MAX_ETHPORTS ||
-				(enabled_port_mask & 1 << dst_port) == 0)
+			(enabled_port_mask & 1 << dst_port) == 0)
 			dst_port = portid;
 
 #ifdef DO_RFC_1812_CHECKS
@@ -1348,13 +1348,13 @@ l3fwd_simple_forward(struct rte_mbuf *m, uint8_t portid)
 		struct ipv6_hdr *ipv6_hdr;
 
 		ipv6_hdr = rte_pktmbuf_mtod_offset(m, struct ipv6_hdr *,
-				sizeof(struct ether_hdr));
+		sizeof(struct ether_hdr));
 
 		dst_port = get_ipv6_dst_port(ipv6_hdr, portid,
-				RTE_PER_LCORE(lcore_conf)->ipv6_lookup_struct);
+									 RTE_PER_LCORE(lcore_conf)->ipv6_lookup_struct);
 
 		if (dst_port >= RTE_MAX_ETHPORTS ||
-				(enabled_port_mask & 1 << dst_port) == 0)
+			(enabled_port_mask & 1 << dst_port) == 0)
 			dst_port = portid;
 
 		/* dst addr */
@@ -1403,8 +1403,8 @@ rfc1812_process(struct ipv4_hdr *ipv4_hdr, uint16_t *dp, uint32_t ptype)
 		ipv4_hdr->hdr_checksum++;
 
 		if (ihl > IPV4_MAX_VER_IHL_DIFF ||
-				((uint8_t)ipv4_hdr->total_length == 0 &&
-				ipv4_hdr->total_length < IPV4_MIN_LEN_BE)) {
+			((uint8_t)ipv4_hdr->total_length == 0 &&
+			 ipv4_hdr->total_length < IPV4_MIN_LEN_BE)) {
 			dp[0] = BAD_PORT;
 		}
 	}
@@ -1439,7 +1439,7 @@ get_dst_port(struct rte_mbuf *pkt, uint32_t dst_ipv4, uint8_t portid)
 		return (uint16_t) ((rte_lpm6_lookup(
 				RTE_PER_LCORE(lcore_conf)->ipv6_lookup_struct,
 				ipv6_hdr->dst_addr, &next_hop) == 0) ?
-				next_hop : portid);
+						   next_hop : portid);
 
 	}
 
@@ -1477,8 +1477,8 @@ process_packet(struct rte_mbuf *pkt, uint16_t *dst_port, uint8_t portid)
  */
 static inline void
 processx4_step1(struct rte_mbuf *pkt[FWDSTEP],
-		__m128i *dip,
-		uint32_t *ipv4_flag)
+				__m128i *dip,
+				uint32_t *ipv4_flag)
 {
 	struct ipv4_hdr *ipv4_hdr;
 	struct ether_hdr *eth_hdr;
@@ -1513,14 +1513,14 @@ processx4_step1(struct rte_mbuf *pkt[FWDSTEP],
  */
 static inline void
 processx4_step2(__m128i dip,
-		uint32_t ipv4_flag,
-		uint8_t portid,
-		struct rte_mbuf *pkt[FWDSTEP],
-		uint16_t dprt[FWDSTEP])
+				uint32_t ipv4_flag,
+				uint8_t portid,
+				struct rte_mbuf *pkt[FWDSTEP],
+				uint16_t dprt[FWDSTEP])
 {
 	rte_xmm_t dst;
 	const __m128i bswap_mask = _mm_set_epi8(12, 13, 14, 15, 8, 9, 10, 11,
-			4, 5, 6, 7, 0, 1, 2, 3);
+											4, 5, 6, 7, 0, 1, 2, 3);
 
 	/* Byte swap 4 IPV4 addresses. */
 	dip = _mm_shuffle_epi8(dip, bswap_mask);
@@ -1528,7 +1528,7 @@ processx4_step2(__m128i dip,
 	/* if all 4 packets are IPV4. */
 	if (likely(ipv4_flag)) {
 		rte_lpm_lookupx4(RTE_PER_LCORE(lcore_conf)->ipv4_lookup_struct, dip,
-				dst.u32, portid);
+						 dst.u32, portid);
 
 		/* get rid of unused upper 16 bit for each dport. */
 		dst.x = _mm_packs_epi32(dst.x, dst.x);
@@ -1582,13 +1582,13 @@ processx4_step3(struct rte_mbuf *pkt[FWDSTEP], uint16_t dst_port[FWDSTEP])
 	_mm_store_si128(p[3], te[3]);
 
 	rfc1812_process((struct ipv4_hdr *)((struct ether_hdr *)p[0] + 1),
-			&dst_port[0], pkt[0]->packet_type);
+					&dst_port[0], pkt[0]->packet_type);
 	rfc1812_process((struct ipv4_hdr *)((struct ether_hdr *)p[1] + 1),
-			&dst_port[1], pkt[1]->packet_type);
+					&dst_port[1], pkt[1]->packet_type);
 	rfc1812_process((struct ipv4_hdr *)((struct ether_hdr *)p[2] + 1),
-			&dst_port[2], pkt[2]->packet_type);
+					&dst_port[2], pkt[2]->packet_type);
 	rfc1812_process((struct ipv4_hdr *)((struct ether_hdr *)p[3] + 1),
-			&dst_port[3], pkt[3]->packet_type);
+					&dst_port[3], pkt[3]->packet_type);
 }
 
 /*
@@ -1624,140 +1624,140 @@ processx4_step3(struct rte_mbuf *pkt[FWDSTEP], uint16_t dst_port[FWDSTEP])
  * This mask is used as an index into prebuild array of pnum values.
  */
 static inline uint16_t *
-port_groupx4(uint16_t pn[FWDSTEP + 1], uint16_t *lp, __m128i dp1, __m128i dp2)
+		port_groupx4(uint16_t pn[FWDSTEP + 1], uint16_t *lp, __m128i dp1, __m128i dp2)
 {
-	static const struct {
-		uint64_t pnum; /* prebuild 4 values for pnum[]. */
-		int32_t  idx;  /* index for new last updated elemnet. */
-		uint16_t lpv;  /* add value to the last updated element. */
-	} gptbl[GRPSZ] = {
-	{
-		/* 0: a != b, b != c, c != d, d != e */
-		.pnum = UINT64_C(0x0001000100010001),
-		.idx = 4,
-		.lpv = 0,
-	},
-	{
-		/* 1: a == b, b != c, c != d, d != e */
-		.pnum = UINT64_C(0x0001000100010002),
-		.idx = 4,
-		.lpv = 1,
-	},
-	{
-		/* 2: a != b, b == c, c != d, d != e */
-		.pnum = UINT64_C(0x0001000100020001),
-		.idx = 4,
-		.lpv = 0,
-	},
-	{
-		/* 3: a == b, b == c, c != d, d != e */
-		.pnum = UINT64_C(0x0001000100020003),
-		.idx = 4,
-		.lpv = 2,
-	},
-	{
-		/* 4: a != b, b != c, c == d, d != e */
-		.pnum = UINT64_C(0x0001000200010001),
-		.idx = 4,
-		.lpv = 0,
-	},
-	{
-		/* 5: a == b, b != c, c == d, d != e */
-		.pnum = UINT64_C(0x0001000200010002),
-		.idx = 4,
-		.lpv = 1,
-	},
-	{
-		/* 6: a != b, b == c, c == d, d != e */
-		.pnum = UINT64_C(0x0001000200030001),
-		.idx = 4,
-		.lpv = 0,
-	},
-	{
-		/* 7: a == b, b == c, c == d, d != e */
-		.pnum = UINT64_C(0x0001000200030004),
-		.idx = 4,
-		.lpv = 3,
-	},
-	{
-		/* 8: a != b, b != c, c != d, d == e */
-		.pnum = UINT64_C(0x0002000100010001),
-		.idx = 3,
-		.lpv = 0,
-	},
-	{
-		/* 9: a == b, b != c, c != d, d == e */
-		.pnum = UINT64_C(0x0002000100010002),
-		.idx = 3,
-		.lpv = 1,
-	},
-	{
-		/* 0xa: a != b, b == c, c != d, d == e */
-		.pnum = UINT64_C(0x0002000100020001),
-		.idx = 3,
-		.lpv = 0,
-	},
-	{
-		/* 0xb: a == b, b == c, c != d, d == e */
-		.pnum = UINT64_C(0x0002000100020003),
-		.idx = 3,
-		.lpv = 2,
-	},
-	{
-		/* 0xc: a != b, b != c, c == d, d == e */
-		.pnum = UINT64_C(0x0002000300010001),
-		.idx = 2,
-		.lpv = 0,
-	},
-	{
-		/* 0xd: a == b, b != c, c == d, d == e */
-		.pnum = UINT64_C(0x0002000300010002),
-		.idx = 2,
-		.lpv = 1,
-	},
-	{
-		/* 0xe: a != b, b == c, c == d, d == e */
-		.pnum = UINT64_C(0x0002000300040001),
-		.idx = 1,
-		.lpv = 0,
-	},
-	{
-		/* 0xf: a == b, b == c, c == d, d == e */
-		.pnum = UINT64_C(0x0002000300040005),
-		.idx = 0,
-		.lpv = 4,
-	},
-	};
+static const struct {
+	uint64_t pnum; /* prebuild 4 values for pnum[]. */
+	int32_t  idx;  /* index for new last updated elemnet. */
+	uint16_t lpv;  /* add value to the last updated element. */
+} gptbl[GRPSZ] = {
+		{
+				/* 0: a != b, b != c, c != d, d != e */
+				.pnum = UINT64_C(0x0001000100010001),
+				.idx = 4,
+				.lpv = 0,
+		},
+		{
+				/* 1: a == b, b != c, c != d, d != e */
+				.pnum = UINT64_C(0x0001000100010002),
+				.idx = 4,
+				.lpv = 1,
+		},
+		{
+				/* 2: a != b, b == c, c != d, d != e */
+				.pnum = UINT64_C(0x0001000100020001),
+				.idx = 4,
+				.lpv = 0,
+		},
+		{
+				/* 3: a == b, b == c, c != d, d != e */
+				.pnum = UINT64_C(0x0001000100020003),
+				.idx = 4,
+				.lpv = 2,
+		},
+		{
+				/* 4: a != b, b != c, c == d, d != e */
+				.pnum = UINT64_C(0x0001000200010001),
+				.idx = 4,
+				.lpv = 0,
+		},
+		{
+				/* 5: a == b, b != c, c == d, d != e */
+				.pnum = UINT64_C(0x0001000200010002),
+				.idx = 4,
+				.lpv = 1,
+		},
+		{
+				/* 6: a != b, b == c, c == d, d != e */
+				.pnum = UINT64_C(0x0001000200030001),
+				.idx = 4,
+				.lpv = 0,
+		},
+		{
+				/* 7: a == b, b == c, c == d, d != e */
+				.pnum = UINT64_C(0x0001000200030004),
+				.idx = 4,
+				.lpv = 3,
+		},
+		{
+				/* 8: a != b, b != c, c != d, d == e */
+				.pnum = UINT64_C(0x0002000100010001),
+				.idx = 3,
+				.lpv = 0,
+		},
+		{
+				/* 9: a == b, b != c, c != d, d == e */
+				.pnum = UINT64_C(0x0002000100010002),
+				.idx = 3,
+				.lpv = 1,
+		},
+		{
+				/* 0xa: a != b, b == c, c != d, d == e */
+				.pnum = UINT64_C(0x0002000100020001),
+				.idx = 3,
+				.lpv = 0,
+		},
+		{
+				/* 0xb: a == b, b == c, c != d, d == e */
+				.pnum = UINT64_C(0x0002000100020003),
+				.idx = 3,
+				.lpv = 2,
+		},
+		{
+				/* 0xc: a != b, b != c, c == d, d == e */
+				.pnum = UINT64_C(0x0002000300010001),
+				.idx = 2,
+				.lpv = 0,
+		},
+		{
+				/* 0xd: a == b, b != c, c == d, d == e */
+				.pnum = UINT64_C(0x0002000300010002),
+				.idx = 2,
+				.lpv = 1,
+		},
+		{
+				/* 0xe: a != b, b == c, c == d, d == e */
+				.pnum = UINT64_C(0x0002000300040001),
+				.idx = 1,
+				.lpv = 0,
+		},
+		{
+				/* 0xf: a == b, b == c, c == d, d == e */
+				.pnum = UINT64_C(0x0002000300040005),
+				.idx = 0,
+				.lpv = 4,
+		},
+};
 
-	union {
-		uint16_t u16[FWDSTEP + 1];
-		uint64_t u64;
-	} *pnum = (void *)pn;
+union {
+	uint16_t u16[FWDSTEP + 1];
+	uint64_t u64;
+} *pnum = (void *)pn;
 
-	int32_t v;
+int32_t v;
 
-	dp1 = _mm_cmpeq_epi16(dp1, dp2);
-	dp1 = _mm_unpacklo_epi16(dp1, dp1);
-	v = _mm_movemask_ps((__m128)dp1);
+dp1 = _mm_cmpeq_epi16(dp1, dp2);
+dp1 = _mm_unpacklo_epi16(dp1, dp1);
+v = _mm_movemask_ps((__m128)dp1);
 
-	/* update last port counter. */
-	lp[0] += gptbl[v].lpv;
+/* update last port counter. */
+lp[0] += gptbl[v].lpv;
 
-	/* if dest port value has changed. */
-	if (v != GRPMSK) {
-		pnum->u64 = gptbl[v].pnum;
-		pnum->u16[FWDSTEP] = 1;
-		lp = pnum->u16 + gptbl[v].idx;
-	}
+/* if dest port value has changed. */
+if (v != GRPMSK) {
+pnum->u64 = gptbl[v].pnum;
+pnum->u16[FWDSTEP] = 1;
+lp = pnum->u16 + gptbl[v].idx;
+}
 
-	return lp;
+return lp;
 }
 
 #endif /* APP_LOOKUP_METHOD */
 
 static void
 process_burst(struct rte_mbuf *pkts_burst[MAX_PKT_BURST], int nb_rx,
-		uint8_t portid) {
+			  uint8_t portid) {
 
 	int j;
 
@@ -1817,12 +1817,12 @@ process_burst(struct rte_mbuf *pkts_burst[MAX_PKT_BURST], int nb_rx,
 	k = RTE_ALIGN_FLOOR(nb_rx, FWDSTEP);
 	for (j = 0; j != k; j += FWDSTEP)
 		processx4_step1(&pkts_burst[j], &dip[j / FWDSTEP],
-				&ipv4_flag[j / FWDSTEP]);
+						&ipv4_flag[j / FWDSTEP]);
 
 	k = RTE_ALIGN_FLOOR(nb_rx, FWDSTEP);
 	for (j = 0; j != k; j += FWDSTEP)
 		processx4_step2(dip[j / FWDSTEP], ipv4_flag[j / FWDSTEP],
-				portid, &pkts_burst[j], &dst_port[j]);
+						portid, &pkts_burst[j], &dst_port[j]);
 
 	/*
 	 * Finish packet processing and group consecutive
@@ -1856,7 +1856,7 @@ process_burst(struct rte_mbuf *pkts_burst[MAX_PKT_BURST], int nb_rx,
 			 * <d[j], d[j+1], d[j+2], d[j+3], ... >
 			 */
 			dp1 = _mm_srli_si128(dp2, (FWDSTEP - 1) *
-					sizeof(dst_port[0]));
+									  sizeof(dst_port[0]));
 		}
 
 		/*
@@ -1879,20 +1879,20 @@ process_burst(struct rte_mbuf *pkts_burst[MAX_PKT_BURST], int nb_rx,
 
 	/* Process up to last 3 packets one by one. */
 	switch (nb_rx % FWDSTEP) {
-	case 3:
-		process_packet(pkts_burst[j], dst_port + j, portid);
-		GROUP_PORT_STEP(dlp, dst_port, lp, pnum, j);
-		j++;
-		/* fall-through */
-	case 2:
-		process_packet(pkts_burst[j], dst_port + j, portid);
-		GROUP_PORT_STEP(dlp, dst_port, lp, pnum, j);
-		j++;
-		/* fall-through */
-	case 1:
-		process_packet(pkts_burst[j], dst_port + j, portid);
-		GROUP_PORT_STEP(dlp, dst_port, lp, pnum, j);
-		j++;
+		case 3:
+			process_packet(pkts_burst[j], dst_port + j, portid);
+			GROUP_PORT_STEP(dlp, dst_port, lp, pnum, j);
+			j++;
+			/* fall-through */
+		case 2:
+			process_packet(pkts_burst[j], dst_port + j, portid);
+			GROUP_PORT_STEP(dlp, dst_port, lp, pnum, j);
+			j++;
+			/* fall-through */
+		case 1:
+			process_packet(pkts_burst[j], dst_port + j, portid);
+			GROUP_PORT_STEP(dlp, dst_port, lp, pnum, j);
+			j++;
 	}
 
 	/*
@@ -1963,7 +1963,7 @@ cpu_load_collector(__rte_unused void *arg) {
 	struct thread_conf *thread_conf;
 
 	const uint64_t interval_tsc = (rte_get_tsc_hz() + US_PER_S - 1) /
-		US_PER_S * CPU_LOAD_TIMEOUT_US;
+								  US_PER_S * CPU_LOAD_TIMEOUT_US;
 
 	prev_tsc = 0;
 	/*
@@ -1971,7 +1971,7 @@ cpu_load_collector(__rte_unused void *arg) {
 	 */
 
 	printf("Waiting for %d rx threads and %d tx threads\n", n_rx_thread,
-			n_tx_thread);
+		   n_tx_thread);
 
 	while (rte_atomic16_read(&rx_counter) < n_rx_thread)
 		rte_pause();
@@ -2033,7 +2033,7 @@ cpu_load_collector(__rte_unused void *arg) {
 			printf("\033c");
 
 			printf("Cpu usage for %d rx threads and %d tx threads:\n\n",
-					n_rx_thread, n_tx_thread);
+				   n_rx_thread, n_tx_thread);
 
 			printf("cpu#     proc%%  poll%%  overhead%%\n\n");
 
@@ -2098,9 +2098,9 @@ lthread_tx_per_ring(void *dummy)
 	RTE_LOG(INFO, L3FWD, "entering main tx loop on lcore %u\n", rte_lcore_id());
 
 	nb_rx = 0;
-    rte_atomic16_inc(&tx_counter);
+	rte_atomic16_inc(&tx_counter);
 
-    //for test
+	//for test
 	int cnt = 0;
 	while (1) {
 
@@ -2109,7 +2109,7 @@ lthread_tx_per_ring(void *dummy)
 		 */
 		SET_CPU_BUSY(tx_conf, CPU_POLL);
 		nb_rx = nf_ring_dequeue_burst(ring, (void **)pkts_burst,
-				MAX_PKT_BURST, NULL);
+									  MAX_PKT_BURST, NULL);
 		SET_CPU_IDLE(tx_conf, CPU_POLL);
 
 
@@ -2118,8 +2118,8 @@ lthread_tx_per_ring(void *dummy)
 			portid = pkts_burst[0]->port;
 			process_burst(pkts_burst, nb_rx, portid);
 			SET_CPU_IDLE(tx_conf, CPU_PROCESS);
-            //for test
-            cnt++;
+			//for test
+			cnt++;
 //            if(cnt == 500 && tx_conf->conf.thread_id !=0 ){
 //                cnt = 0;
 //                printf("tx %d on core %d process %d pkt\n", tx_conf->conf.thread_id, rte_lcore_id(), nb_rx);
@@ -2156,17 +2156,18 @@ lthread_tx(void *args)
 	 * Spawn tx readers (one per input ring)
 	 */
 	//tx ring thread tid: 10s
-    //TODO
-	lthread_create(&lt, tx_conf->conf.lcore_id, lthread_tx_per_ring,
-			(void *)tx_conf);
+	//TODO
+//	lthread_create(&lt, tx_conf->conf.lcore_id, lthread_tx_per_ring,
+//				   (void *)tx_conf);
+	launch_batch_nfs(&lt, 1, lthread_tx_per_ring, (void *)tx_conf);
 
 	lcore_id = rte_lcore_id();
 
 	RTE_LOG(INFO, L3FWD, "Entering Tx main loop on lcore %u\n", lcore_id);
 
 	tx_conf->conf.cpu_id = sched_getcpu();
-    //for test
-    int cnt = 0;
+	//for test
+	int cnt = 0;
 	while (1) {
 
 		lthread_sleep(BURST_TX_DRAIN_US * 1000);
@@ -2176,18 +2177,17 @@ lthread_tx(void *args)
 		 */
 //        cnt++;
 
-//		continue;
-		for (portid = 0; portid < RTE_MAX_ETHPORTS; portid++) {
-			if (tx_conf->tx_mbufs[portid].len == 0)
-				continue;
-			SET_CPU_BUSY(tx_conf, CPU_PROCESS);
-			//FIXME:DPDK set len to zero after sen_burst, but bug here, bug didn't appera in DPDK lthread
+		continue;
+//		for (portid = 0; portid < RTE_MAX_ETHPORTS; portid++) {
+//			if (tx_conf->tx_mbufs[portid].len == 0)
+//				continue;
+//			SET_CPU_BUSY(tx_conf, CPU_PROCESS);
+//			//FIXME:DPDK set len to zero after sen_burst, but bug here, bug didn't appera in DPDK lthread
+////			printf("call send_burst %d\n", tx_conf->tx_mbufs[portid].len);
+//			send_burst(tx_conf, tx_conf->tx_mbufs[portid].len, portid);
+//			SET_CPU_IDLE(tx_conf, CPU_PROCESS);
 //			tx_conf->tx_mbufs[portid].len = 0;
-//			printf("call send_burst %d\n", tx_conf->tx_mbufs[portid].len);
-			send_burst(tx_conf, tx_conf->tx_mbufs[portid].len, portid);
-			SET_CPU_IDLE(tx_conf, CPU_PROCESS);
-			tx_conf->tx_mbufs[portid].len = 0;
-		}
+//		}
 
 	}
 }
@@ -2210,6 +2210,7 @@ lthread_rx(void *dummy)
 
 	/*
 	 * Move this lthread to lcore
+	 * TODO: this responsibility should be transfer to Lthread
 	 */
 	lthread_set_affinity(NULL, rx_conf->conf.lcore_id);
 
@@ -2243,7 +2244,7 @@ lthread_rx(void *dummy)
 	//temp
 	int tempsize = MAX_PKT_BURST;
 	uint64_t cnt = 0;
-    uint16_t core_id;
+	uint16_t core_id;
 	while (1) {
 
 		/*
@@ -2253,7 +2254,7 @@ lthread_rx(void *dummy)
 
 			portid = rx_conf->rx_queue_list[i].port_id;
 			queueid = rx_conf->rx_queue_list[i].queue_id;
-            core_id = rte_lcore_id();
+			core_id = rte_lcore_id();
 
 			SET_CPU_BUSY(rx_conf, CPU_POLL);
 //			nb_rx = rte_eth_rx_burst(portid, queueid, pkts_burst, tempsize);
@@ -2284,8 +2285,8 @@ lthread_rx(void *dummy)
 //			printf("rx %d on core %d, process %d pkts\n", rx_conf->conf.thread_id, core_id, nb_rx);
 
 			if (nb_rx != 0) {
-                //for test
-                cnt++;
+				//for test
+				cnt++;
 
 				worker_id = (worker_id + 1) % rx_conf->n_ring;
 				SET_CPU_BUSY(rx_conf, CPU_PROCESS);
@@ -2295,7 +2296,7 @@ lthread_rx(void *dummy)
 //                    cnt = 0;
 //                    printf("rx %d on core %d, process %d pkts\n", rx_conf->conf.thread_id, core_id, nb_rx);
 //                }
-                ret = nf_ring_enqueue_burst(
+				ret = nf_ring_enqueue_burst(
 						rx_conf->ring[worker_id],
 						(void **) pkts_burst,
 						nb_rx, NULL);
@@ -2329,10 +2330,13 @@ lthread_spawner(__rte_unused void *arg) {
 		rx_thread[i].conf.thread_id = i;
 		//rx thread tid: 20s
 //		rx_thread[i].conf.thread_id =
-		lthread_create(&lt[n_thread], -1, lthread_rx,
-				(void *)&rx_thread[i]);
+//		lthread_create(&lt[n_thread], -1, lthread_rx,
+//					   (void *)&rx_thread[i]);
 		n_thread++;
 	}
+	launch_batch_nfs(lt, n_rx_thread, lthread_rx, (void *)&rx_thread[0], (void *)&rx_thread[1], (void *)&rx_thread[2]);
+//	launch_sfc(lt, n_rx_thread, lthread_rx, (void *)&rx_thread[0],
+//					 lthread_rx, (void *)&rx_thread[1], lthread_rx, (void *)&rx_thread[2]);
 
 	/*
 	 * Wait for all producers. Until some producers can be started on the same
@@ -2348,10 +2352,12 @@ lthread_spawner(__rte_unused void *arg) {
 	for (i = 0; i < n_tx_thread; i++) {
 		tx_thread[i].conf.thread_id = i;
 //		tx_thread[i].conf.thread_id =
-		lthread_create(&lt[n_thread], -1, lthread_tx,
-				(void *)&tx_thread[i]);
+//		lthread_create(&lt[n_thread], -1, lthread_tx,
+//					   (void *)&tx_thread[i]);
 		n_thread++;
 	}
+	launch_batch_nfs(lt, n_tx_thread, lthread_tx, (void *)&tx_thread[0], (void *)&tx_thread[1], (void *)&tx_thread[2],
+					 (void *)&tx_thread[3], (void *)&tx_thread[4], (void *)&tx_thread[5]);
 
 	/*
 	 * Wait for all threads finished
@@ -2369,10 +2375,11 @@ static int
 lthread_master_spawner(__rte_unused void *arg) {
 	struct lthread *lt;
 	int lcore_id = rte_lcore_id();
-    long long thread_id;
+	long long thread_id;
 
 	RTE_PER_LCORE(lcore_conf) = &lcore_conf[lcore_id];
-	lthread_create(&lt, -1, lthread_spawner, NULL);
+//	lthread_create(&lt, -1, lthread_spawner, NULL);
+	launch_batch_nfs(&lt, 1, lthread_spawner, NULL);
 	lthread_run();
 
 	return 0;
@@ -2396,7 +2403,8 @@ sched_spawner(__rte_unused void *arg) {
 
 	RTE_PER_LCORE(lcore_conf) = &lcore_conf[lcore_id];
 	//tid=1008: spawner
-	lthread_create(&lt, -1, lthread_null, NULL);
+//	lthread_create(&lt, -1, lthread_null, NULL);
+	launch_batch_nfs(&lt, 1, lthread_null, NULL);
 	lthread_run();
 
 	return 0;
@@ -2416,7 +2424,7 @@ pthread_tx(void *dummy)
 	struct thread_tx_conf *tx_conf;
 
 	const uint64_t drain_tsc = (rte_get_tsc_hz() + US_PER_S - 1) /
-		US_PER_S * BURST_TX_DRAIN_US;
+							   US_PER_S * BURST_TX_DRAIN_US;
 
 	prev_tsc = 0;
 
@@ -2467,7 +2475,7 @@ pthread_tx(void *dummy)
 		 */
 		SET_CPU_BUSY(tx_conf, CPU_POLL);
 		nb_rx = rte_ring_sc_dequeue_burst(tx_conf->ring,
-				(void **)pkts_burst, MAX_PKT_BURST, NULL);
+										  (void **)pkts_burst, MAX_PKT_BURST, NULL);
 		SET_CPU_IDLE(tx_conf, CPU_POLL);
 
 		if (unlikely(nb_rx == 0)) {
@@ -2537,7 +2545,7 @@ pthread_rx(void *dummy)
 
 			nb_rx = rte_eth_rx_burst(portid, queueid, pkts_burst,
 //				MAX_PKT_BURST);
-				tempsize);
+									 tempsize);
 			SET_CPU_IDLE(rx_conf, CPU_POLL);
 //			clock_gettime(CLOCK_REALTIME, &start);
 
@@ -2550,7 +2558,7 @@ pthread_rx(void *dummy)
 				if(multiply > 1024 *64)
 					multiply = 1;
 				for(h = 0;h<multiply;h++){
-						result += h;
+					result += h;
 					if(result < 0)
 						result = 0;
 				}
@@ -2558,7 +2566,7 @@ pthread_rx(void *dummy)
 			}
 //end
 			if(multiply == 1024 && result == 40960000)
-					RTE_LOG(INFO, L3FWD, "result=%d \n", result);
+				RTE_LOG(INFO, L3FWD, "result=%d \n", result);
 //			clock_gettime(CLOCK_REALTIME, &end);
 //			duration = ((1.0e9*end.tv_sec + end.tv_nsec) - (1.0e9*start.tv_sec + start.tv_nsec));
 //			printf("duration: %9lu\n", duration);
@@ -2577,7 +2585,7 @@ pthread_rx(void *dummy)
 			SET_CPU_BUSY(rx_conf, CPU_PROCESS);
 			worker_id = (worker_id + 1) % rx_conf->n_ring;
 			n = rte_ring_sp_enqueue_burst(rx_conf->ring[worker_id],
-					(void **)pkts_burst, nb_rx, NULL);
+										  (void **)pkts_burst, nb_rx, NULL);
 
 			if (unlikely(n != nb_rx)) {
 				uint32_t k;
@@ -2650,7 +2658,7 @@ check_lcore_params(void)
 		socketid = rte_lcore_to_socket_id(lcore);
 		if ((socketid != 0) && (numa_on == 0))
 			printf("warning: lcore %hhu is on socket %d with numa off\n",
-				lcore, socketid);
+				   lcore, socketid);
 	}
 	return 0;
 }
@@ -2683,7 +2691,7 @@ get_port_n_rx_queues(const uint8_t port)
 
 	for (i = 0; i < nb_rx_thread_params; ++i)
 		if (rx_thread_params[i].port_id == port &&
-				rx_thread_params[i].queue_id > queue)
+			rx_thread_params[i].queue_id > queue)
 			queue = rx_thread_params[i].queue_id;
 
 	return (uint8_t)(++queue);
@@ -2704,12 +2712,12 @@ init_rx_rings(void)
 		tx_conf = &tx_thread[tx_thread_id];
 
 		printf("Connecting tx-thread %d with rx-thread %d\n", tx_thread_id,
-				tx_conf->conf.thread_id);
+			   tx_conf->conf.thread_id);
 
 		rx_thread_id = tx_conf->conf.thread_id;
 		if (rx_thread_id > n_tx_thread) {
 			printf("connection from tx-thread %u to rx-thread %u fails "
-					"(rx-thread not defined)\n", tx_thread_id, rx_thread_id);
+						   "(rx-thread not defined)\n", tx_thread_id, rx_thread_id);
 			return -1;
 		}
 
@@ -2717,14 +2725,14 @@ init_rx_rings(void)
 		socket_io = rte_lcore_to_socket_id(rx_conf->conf.lcore_id);
 
 		snprintf(name, sizeof(name), "app_ring_s%u_rx%u_tx%u",
-				socket_io, rx_thread_id, tx_thread_id);
+				 socket_io, rx_thread_id, tx_thread_id);
 
 		ring = rte_ring_create(name, 1024 * 4, socket_io,
-				RING_F_SP_ENQ | RING_F_SC_DEQ);
+							   RING_F_SP_ENQ | RING_F_SC_DEQ);
 
 		if (ring == NULL) {
 			rte_panic("Cannot create ring to connect rx-thread %u "
-					"with tx-thread %u\n", rx_thread_id, tx_thread_id);
+							  "with tx-thread %u\n", rx_thread_id, tx_thread_id);
 		}
 
 		rx_conf->ring[rx_conf->n_ring] = ring;
@@ -2751,16 +2759,16 @@ init_rx_queues(void)
 
 		if (nb_rx_queue >= MAX_RX_QUEUE_PER_LCORE) {
 			printf("error: too many queues (%u) for thread: %u\n",
-				(unsigned)nb_rx_queue + 1, (unsigned)thread);
+				   (unsigned)nb_rx_queue + 1, (unsigned)thread);
 			return -1;
 		}
 
 		rx_thread[thread].conf.thread_id = thread;
 		rx_thread[thread].conf.lcore_id = rx_thread_params[i].lcore_id;
 		rx_thread[thread].rx_queue_list[nb_rx_queue].port_id =
-			rx_thread_params[i].port_id;
+				rx_thread_params[i].port_id;
 		rx_thread[thread].rx_queue_list[nb_rx_queue].queue_id =
-			rx_thread_params[i].queue_id;
+				rx_thread_params[i].queue_id;
 		rx_thread[thread].n_rx_queue++;
 
 		if (thread >= n_rx_thread)
@@ -2789,24 +2797,24 @@ static void
 print_usage(const char *prgname)
 {
 	printf("%s [EAL options] -- -p PORTMASK -P"
-		"  [--rx (port,queue,lcore,thread)[,(port,queue,lcore,thread]]"
-		"  [--tx (lcore,thread)[,(lcore,thread]]"
-		"  [--enable-jumbo [--max-pkt-len PKTLEN]]\n"
-		"  [--parse-ptype]\n\n"
-		"  -p PORTMASK: hexadecimal bitmask of ports to configure\n"
-		"  -P : enable promiscuous mode\n"
-		"  --rx (port,queue,lcore,thread): rx queues configuration\n"
-		"  --tx (lcore,thread): tx threads configuration\n"
-		"  --stat-lcore LCORE: use lcore for stat collector\n"
-		"  --eth-dest=X,MM:MM:MM:MM:MM:MM: optional, ethernet destination for port X\n"
-		"  --no-numa: optional, disable numa awareness\n"
-		"  --ipv6: optional, specify it if running ipv6 packets\n"
-		"  --enable-jumbo: enable jumbo frame"
-		" which max packet len is PKTLEN in decimal (64-9600)\n"
-		"  --hash-entry-num: specify the hash entry number in hexadecimal to be setup\n"
-		"  --no-lthreads: turn off lthread model\n"
-		"  --parse-ptype: set to use software to analyze packet type\n\n",
-		prgname);
+				   "  [--rx (port,queue,lcore,thread)[,(port,queue,lcore,thread]]"
+				   "  [--tx (lcore,thread)[,(lcore,thread]]"
+				   "  [--enable-jumbo [--max-pkt-len PKTLEN]]\n"
+				   "  [--parse-ptype]\n\n"
+				   "  -p PORTMASK: hexadecimal bitmask of ports to configure\n"
+				   "  -P : enable promiscuous mode\n"
+				   "  --rx (port,queue,lcore,thread): rx queues configuration\n"
+				   "  --tx (lcore,thread): tx threads configuration\n"
+				   "  --stat-lcore LCORE: use lcore for stat collector\n"
+				   "  --eth-dest=X,MM:MM:MM:MM:MM:MM: optional, ethernet destination for port X\n"
+				   "  --no-numa: optional, disable numa awareness\n"
+				   "  --ipv6: optional, specify it if running ipv6 packets\n"
+				   "  --enable-jumbo: enable jumbo frame"
+				   " which max packet len is PKTLEN in decimal (64-9600)\n"
+				   "  --hash-entry-num: specify the hash entry number in hexadecimal to be setup\n"
+				   "  --no-lthreads: turn off lthread model\n"
+				   "  --parse-ptype: set to use software to analyze packet type\n\n",
+		   prgname);
 }
 
 static int parse_max_pkt_len(const char *pktlen)
@@ -2902,7 +2910,7 @@ parse_rx_config(const char *q_arg)
 		}
 		if (nb_rx_thread_params >= MAX_LCORE_PARAMS) {
 			printf("exceeded max number of rx params: %hu\n",
-					nb_rx_thread_params);
+				   nb_rx_thread_params);
 			return -1;
 		}
 		rx_thread_params_array[nb_rx_thread_params].port_id =
@@ -2959,7 +2967,7 @@ parse_tx_config(const char *q_arg)
 		}
 		if (nb_tx_thread_params >= MAX_LCORE_PARAMS) {
 			printf("exceeded max number of tx params: %hu\n",
-				nb_tx_thread_params);
+				   nb_tx_thread_params);
 			return -1;
 		}
 		tx_thread_params_array[nb_tx_thread_params].lcore_id =
@@ -3000,17 +3008,17 @@ parse_eth_dest(const char *optarg)
 	portid = strtoul(optarg, &port_end, 10);
 	if (errno != 0 || port_end == optarg || *port_end++ != ',')
 		rte_exit(EXIT_FAILURE,
-		"Invalid eth-dest: %s", optarg);
+				 "Invalid eth-dest: %s", optarg);
 	if (portid >= RTE_MAX_ETHPORTS)
 		rte_exit(EXIT_FAILURE,
-		"eth-dest: port %d >= RTE_MAX_ETHPORTS(%d)\n",
-		portid, RTE_MAX_ETHPORTS);
+				 "eth-dest: port %d >= RTE_MAX_ETHPORTS(%d)\n",
+				 portid, RTE_MAX_ETHPORTS);
 
 	if (cmdline_parse_etheraddr(NULL, port_end,
-		&peer_addr, sizeof(peer_addr)) < 0)
+								&peer_addr, sizeof(peer_addr)) < 0)
 		rte_exit(EXIT_FAILURE,
-		"Invalid ethernet address: %s\n",
-		port_end);
+				 "Invalid ethernet address: %s\n",
+				 port_end);
 	dest = (uint8_t *)&dest_eth_addr[portid];
 	for (c = 0; c < 6; c++)
 		dest[c] = peer_addr[c];
@@ -3037,77 +3045,77 @@ parse_args(int argc, char **argv)
 	int option_index;
 	char *prgname = argv[0];
 	static struct option lgopts[] = {
-		{CMD_LINE_OPT_RX_CONFIG, 1, 0, 0},
-		{CMD_LINE_OPT_TX_CONFIG, 1, 0, 0},
-		{CMD_LINE_OPT_STAT_LCORE, 1, 0, 0},
-		{CMD_LINE_OPT_ETH_DEST, 1, 0, 0},
-		{CMD_LINE_OPT_NO_NUMA, 0, 0, 0},
-		{CMD_LINE_OPT_IPV6, 0, 0, 0},
-		{CMD_LINE_OPT_ENABLE_JUMBO, 0, 0, 0},
-		{CMD_LINE_OPT_HASH_ENTRY_NUM, 1, 0, 0},
-		{CMD_LINE_OPT_NO_LTHREADS, 0, 0, 0},
-		{CMD_LINE_OPT_PARSE_PTYPE, 0, 0, 0},
-		{NULL, 0, 0, 0}
+			{CMD_LINE_OPT_RX_CONFIG, 1, 0, 0},
+			{CMD_LINE_OPT_TX_CONFIG, 1, 0, 0},
+			{CMD_LINE_OPT_STAT_LCORE, 1, 0, 0},
+			{CMD_LINE_OPT_ETH_DEST, 1, 0, 0},
+			{CMD_LINE_OPT_NO_NUMA, 0, 0, 0},
+			{CMD_LINE_OPT_IPV6, 0, 0, 0},
+			{CMD_LINE_OPT_ENABLE_JUMBO, 0, 0, 0},
+			{CMD_LINE_OPT_HASH_ENTRY_NUM, 1, 0, 0},
+			{CMD_LINE_OPT_NO_LTHREADS, 0, 0, 0},
+			{CMD_LINE_OPT_PARSE_PTYPE, 0, 0, 0},
+			{NULL, 0, 0, 0}
 	};
 
 	argvopt = argv;
 
 	while ((opt = getopt_long(argc, argvopt, "p:P",
-				lgopts, &option_index)) != EOF) {
+							  lgopts, &option_index)) != EOF) {
 
 		switch (opt) {
-		/* portmask */
-		case 'p':
-			enabled_port_mask = parse_portmask(optarg);
-			if (enabled_port_mask == 0) {
-				printf("invalid portmask\n");
-				print_usage(prgname);
-				return -1;
-			}
-			break;
-		case 'P':
-			printf("Promiscuous mode selected\n");
-			promiscuous_on = 1;
-			break;
-
-		/* long options */
-		case 0:
-			if (!strncmp(lgopts[option_index].name, CMD_LINE_OPT_RX_CONFIG,
-				sizeof(CMD_LINE_OPT_RX_CONFIG))) {
-				ret = parse_rx_config(optarg);
-				if (ret) {
-					printf("invalid rx-config\n");
+			/* portmask */
+			case 'p':
+				enabled_port_mask = parse_portmask(optarg);
+				if (enabled_port_mask == 0) {
+					printf("invalid portmask\n");
 					print_usage(prgname);
 					return -1;
 				}
-			}
+				break;
+			case 'P':
+				printf("Promiscuous mode selected\n");
+				promiscuous_on = 1;
+				break;
 
-			if (!strncmp(lgopts[option_index].name, CMD_LINE_OPT_TX_CONFIG,
-				sizeof(CMD_LINE_OPT_TX_CONFIG))) {
-				ret = parse_tx_config(optarg);
-				if (ret) {
-					printf("invalid tx-config\n");
-					print_usage(prgname);
-					return -1;
+				/* long options */
+			case 0:
+				if (!strncmp(lgopts[option_index].name, CMD_LINE_OPT_RX_CONFIG,
+							 sizeof(CMD_LINE_OPT_RX_CONFIG))) {
+					ret = parse_rx_config(optarg);
+					if (ret) {
+						printf("invalid rx-config\n");
+						print_usage(prgname);
+						return -1;
+					}
 				}
-			}
+
+				if (!strncmp(lgopts[option_index].name, CMD_LINE_OPT_TX_CONFIG,
+							 sizeof(CMD_LINE_OPT_TX_CONFIG))) {
+					ret = parse_tx_config(optarg);
+					if (ret) {
+						printf("invalid tx-config\n");
+						print_usage(prgname);
+						return -1;
+					}
+				}
 
 #if (APP_CPU_LOAD > 0)
-			if (!strncmp(lgopts[option_index].name, CMD_LINE_OPT_STAT_LCORE,
-					sizeof(CMD_LINE_OPT_STAT_LCORE))) {
-				cpu_load_lcore_id = parse_stat_lcore(optarg);
-			}
+				if (!strncmp(lgopts[option_index].name, CMD_LINE_OPT_STAT_LCORE,
+							 sizeof(CMD_LINE_OPT_STAT_LCORE))) {
+					cpu_load_lcore_id = parse_stat_lcore(optarg);
+				}
 #endif
 
-			if (!strncmp(lgopts[option_index].name, CMD_LINE_OPT_ETH_DEST,
-				sizeof(CMD_LINE_OPT_ETH_DEST)))
+				if (!strncmp(lgopts[option_index].name, CMD_LINE_OPT_ETH_DEST,
+							 sizeof(CMD_LINE_OPT_ETH_DEST)))
 					parse_eth_dest(optarg);
 
-			if (!strncmp(lgopts[option_index].name, CMD_LINE_OPT_NO_NUMA,
-				sizeof(CMD_LINE_OPT_NO_NUMA))) {
-				printf("numa is disabled\n");
-				numa_on = 0;
-			}
+				if (!strncmp(lgopts[option_index].name, CMD_LINE_OPT_NO_NUMA,
+							 sizeof(CMD_LINE_OPT_NO_NUMA))) {
+					printf("numa is disabled\n");
+					numa_on = 0;
+				}
 
 #if (APP_LOOKUP_METHOD == APP_LOOKUP_EXACT_MATCH)
 			if (!strncmp(lgopts[option_index].name, CMD_LINE_OPT_IPV6,
@@ -3117,41 +3125,41 @@ parse_args(int argc, char **argv)
 			}
 #endif
 
-			if (!strncmp(lgopts[option_index].name, CMD_LINE_OPT_NO_LTHREADS,
-					sizeof(CMD_LINE_OPT_NO_LTHREADS))) {
-				printf("l-threads model is disabled\n");
-				lthreads_on = 0;
-			}
-
-			if (!strncmp(lgopts[option_index].name, CMD_LINE_OPT_PARSE_PTYPE,
-					sizeof(CMD_LINE_OPT_PARSE_PTYPE))) {
-				printf("software packet type parsing enabled\n");
-				parse_ptype_on = 1;
-			}
-
-			if (!strncmp(lgopts[option_index].name, CMD_LINE_OPT_ENABLE_JUMBO,
-				sizeof(CMD_LINE_OPT_ENABLE_JUMBO))) {
-				struct option lenopts = {"max-pkt-len", required_argument, 0,
-						0};
-
-				printf("jumbo frame is enabled - disabling simple TX path\n");
-				port_conf.rxmode.jumbo_frame = 1;
-
-				/* if no max-pkt-len set, use the default value ETHER_MAX_LEN */
-				if (0 == getopt_long(argc, argvopt, "", &lenopts,
-						&option_index)) {
-
-					ret = parse_max_pkt_len(optarg);
-					if ((ret < 64) || (ret > MAX_JUMBO_PKT_LEN)) {
-						printf("invalid packet length\n");
-						print_usage(prgname);
-						return -1;
-					}
-					port_conf.rxmode.max_rx_pkt_len = ret;
+				if (!strncmp(lgopts[option_index].name, CMD_LINE_OPT_NO_LTHREADS,
+							 sizeof(CMD_LINE_OPT_NO_LTHREADS))) {
+					printf("l-threads model is disabled\n");
+					lthreads_on = 0;
 				}
-				printf("set jumbo frame max packet length to %u\n",
-						(unsigned int)port_conf.rxmode.max_rx_pkt_len);
-			}
+
+				if (!strncmp(lgopts[option_index].name, CMD_LINE_OPT_PARSE_PTYPE,
+							 sizeof(CMD_LINE_OPT_PARSE_PTYPE))) {
+					printf("software packet type parsing enabled\n");
+					parse_ptype_on = 1;
+				}
+
+				if (!strncmp(lgopts[option_index].name, CMD_LINE_OPT_ENABLE_JUMBO,
+							 sizeof(CMD_LINE_OPT_ENABLE_JUMBO))) {
+					struct option lenopts = {"max-pkt-len", required_argument, 0,
+											 0};
+
+					printf("jumbo frame is enabled - disabling simple TX path\n");
+					port_conf.rxmode.jumbo_frame = 1;
+
+					/* if no max-pkt-len set, use the default value ETHER_MAX_LEN */
+					if (0 == getopt_long(argc, argvopt, "", &lenopts,
+										 &option_index)) {
+
+						ret = parse_max_pkt_len(optarg);
+						if ((ret < 64) || (ret > MAX_JUMBO_PKT_LEN)) {
+							printf("invalid packet length\n");
+							print_usage(prgname);
+							return -1;
+						}
+						port_conf.rxmode.max_rx_pkt_len = ret;
+					}
+					printf("set jumbo frame max packet length to %u\n",
+						   (unsigned int)port_conf.rxmode.max_rx_pkt_len);
+				}
 #if (APP_LOOKUP_METHOD == APP_LOOKUP_EXACT_MATCH)
 			if (!strncmp(lgopts[option_index].name, CMD_LINE_OPT_HASH_ENTRY_NUM,
 				sizeof(CMD_LINE_OPT_HASH_ENTRY_NUM))) {
@@ -3165,11 +3173,11 @@ parse_args(int argc, char **argv)
 				}
 			}
 #endif
-			break;
+				break;
 
-		default:
-			print_usage(prgname);
-			return -1;
+			default:
+				print_usage(prgname);
+				return -1;
 		}
 	}
 
@@ -3468,24 +3476,24 @@ setup_lpm(int socketid)
 
 		/* skip unused ports */
 		if ((1 << ipv4_l3fwd_route_array[i].if_out &
-				enabled_port_mask) == 0)
+			 enabled_port_mask) == 0)
 			continue;
 
 		ret = rte_lpm_add(ipv4_l3fwd_lookup_struct[socketid],
-			ipv4_l3fwd_route_array[i].ip,
-			ipv4_l3fwd_route_array[i].depth,
-			ipv4_l3fwd_route_array[i].if_out);
+						  ipv4_l3fwd_route_array[i].ip,
+						  ipv4_l3fwd_route_array[i].depth,
+						  ipv4_l3fwd_route_array[i].if_out);
 
 		if (ret < 0) {
 			rte_exit(EXIT_FAILURE, "Unable to add entry %u to the "
-				"l3fwd LPM table on socket %d\n",
-				i, socketid);
+							 "l3fwd LPM table on socket %d\n",
+					 i, socketid);
 		}
 
 		printf("LPM: Adding route 0x%08x / %d (%d)\n",
-			(unsigned)ipv4_l3fwd_route_array[i].ip,
-			ipv4_l3fwd_route_array[i].depth,
-			ipv4_l3fwd_route_array[i].if_out);
+			   (unsigned)ipv4_l3fwd_route_array[i].ip,
+			   ipv4_l3fwd_route_array[i].depth,
+			   ipv4_l3fwd_route_array[i].if_out);
 	}
 
 	/* create the LPM6 table */
@@ -3495,7 +3503,7 @@ setup_lpm(int socketid)
 	config.number_tbl8s = IPV6_L3FWD_LPM_NUMBER_TBL8S;
 	config.flags = 0;
 	ipv6_l3fwd_lookup_struct[socketid] = rte_lpm6_create(s, socketid,
-				&config);
+														 &config);
 	if (ipv6_l3fwd_lookup_struct[socketid] == NULL)
 		rte_exit(EXIT_FAILURE, "Unable to create the l3fwd LPM table"
 				" on socket %d\n", socketid);
@@ -3505,24 +3513,24 @@ setup_lpm(int socketid)
 
 		/* skip unused ports */
 		if ((1 << ipv6_l3fwd_route_array[i].if_out &
-				enabled_port_mask) == 0)
+			 enabled_port_mask) == 0)
 			continue;
 
 		ret = rte_lpm6_add(ipv6_l3fwd_lookup_struct[socketid],
-			ipv6_l3fwd_route_array[i].ip,
-			ipv6_l3fwd_route_array[i].depth,
-			ipv6_l3fwd_route_array[i].if_out);
+						   ipv6_l3fwd_route_array[i].ip,
+						   ipv6_l3fwd_route_array[i].depth,
+						   ipv6_l3fwd_route_array[i].if_out);
 
 		if (ret < 0) {
 			rte_exit(EXIT_FAILURE, "Unable to add entry %u to the "
-				"l3fwd LPM table on socket %d\n",
-				i, socketid);
+							 "l3fwd LPM table on socket %d\n",
+					 i, socketid);
 		}
 
 		printf("LPM: Adding route %s / %d (%d)\n",
-			"IPV6",
-			ipv6_l3fwd_route_array[i].depth,
-			ipv6_l3fwd_route_array[i].if_out);
+			   "IPV6",
+			   ipv6_l3fwd_route_array[i].depth,
+			   ipv6_l3fwd_route_array[i].if_out);
 	}
 }
 #endif
@@ -3546,17 +3554,17 @@ init_mem(unsigned nb_mbuf)
 
 		if (socketid >= NB_SOCKETS) {
 			rte_exit(EXIT_FAILURE, "Socket %d of lcore %u is out of range %d\n",
-				socketid, lcore_id, NB_SOCKETS);
+					 socketid, lcore_id, NB_SOCKETS);
 		}
 		if (pktmbuf_pool[socketid] == NULL) {
 			snprintf(s, sizeof(s), "mbuf_pool_%d", socketid);
 			pktmbuf_pool[socketid] =
-				rte_pktmbuf_pool_create(s, nb_mbuf,
-					MEMPOOL_CACHE_SIZE, 0,
-					RTE_MBUF_DEFAULT_BUF_SIZE, socketid);
+					rte_pktmbuf_pool_create(s, nb_mbuf,
+											MEMPOOL_CACHE_SIZE, 0,
+											RTE_MBUF_DEFAULT_BUF_SIZE, socketid);
 			if (pktmbuf_pool[socketid] == NULL)
 				rte_exit(EXIT_FAILURE,
-						"Cannot init mbuf pool on socket %d\n", socketid);
+						 "Cannot init mbuf pool on socket %d\n", socketid);
 			else
 				printf("Allocated mbuf pool on socket %d\n", socketid);
 
@@ -3595,13 +3603,13 @@ check_all_ports_link_status(uint8_t port_num, uint32_t port_mask)
 			if (print_flag == 1) {
 				if (link.link_status)
 					printf("Port %d Link Up - speed %u "
-						"Mbps - %s\n", (uint8_t)portid,
-						(unsigned)link.link_speed,
-				(link.link_duplex == ETH_LINK_FULL_DUPLEX) ?
-					("full-duplex") : ("half-duplex\n"));
+								   "Mbps - %s\n", (uint8_t)portid,
+						   (unsigned)link.link_speed,
+						   (link.link_duplex == ETH_LINK_FULL_DUPLEX) ?
+						   ("full-duplex") : ("half-duplex\n"));
 				else
 					printf("Port %d Link Down\n",
-						(uint8_t)portid);
+						   (uint8_t)portid);
 				continue;
 			}
 			/* clear all_ports_up flag if any link down */
@@ -3651,7 +3659,7 @@ main(int argc, char **argv)
 	/* pre-init dst MACs for all ports to 02:00:00:00:00:xx */
 	for (portid = 0; portid < RTE_MAX_ETHPORTS; portid++) {
 		dest_eth_addr[portid] = ETHER_LOCAL_ADMIN_ADDR +
-				((uint64_t)portid << 40);
+								((uint64_t)portid << 40);
 		*(uint64_t *)(val_eth + portid) = dest_eth_addr[portid];
 	}
 
@@ -3702,32 +3710,32 @@ main(int argc, char **argv)
 		if (n_tx_queue > MAX_TX_QUEUE_PER_PORT)
 			n_tx_queue = MAX_TX_QUEUE_PER_PORT;
 		printf("Creating queues: nb_rxq=%d nb_txq=%u... ",
-			nb_rx_queue, (unsigned)n_tx_queue);
+			   nb_rx_queue, (unsigned)n_tx_queue);
 		ret = rte_eth_dev_configure(portid, nb_rx_queue,
-					(uint16_t)n_tx_queue, &port_conf);
+									(uint16_t)n_tx_queue, &port_conf);
 		if (ret < 0)
 			rte_exit(EXIT_FAILURE, "Cannot configure device: err=%d, port=%d\n",
-				ret, portid);
+					 ret, portid);
 
 		ret = rte_eth_dev_adjust_nb_rx_tx_desc(portid, &nb_rxd,
-						       &nb_txd);
+											   &nb_txd);
 		if (ret < 0)
 			rte_exit(EXIT_FAILURE,
-				 "rte_eth_dev_adjust_nb_rx_tx_desc: err=%d, port=%d\n",
-				 ret, portid);
+					 "rte_eth_dev_adjust_nb_rx_tx_desc: err=%d, port=%d\n",
+					 ret, portid);
 
 		rte_eth_macaddr_get(portid, &ports_eth_addr[portid]);
 		print_ethaddr(" Address:", &ports_eth_addr[portid]);
 		printf(", ");
 		print_ethaddr("Destination:",
-			(const struct ether_addr *)&dest_eth_addr[portid]);
+					  (const struct ether_addr *)&dest_eth_addr[portid]);
 		printf(", ");
 
 		/*
 		 * prepare src MACs for each port.
 		 */
 		ether_addr_copy(&ports_eth_addr[portid],
-			(struct ether_addr *)(val_eth + portid) + 1);
+						(struct ether_addr *)(val_eth + portid) + 1);
 
 		/* init memory */
 		ret = init_mem(NB_MBUF);
@@ -3753,10 +3761,10 @@ main(int argc, char **argv)
 			if (port_conf.rxmode.jumbo_frame)
 				txconf->txq_flags = 0;
 			ret = rte_eth_tx_queue_setup(portid, queueid, nb_txd,
-						     socketid, txconf);
+										 socketid, txconf);
 			if (ret < 0)
 				rte_exit(EXIT_FAILURE, "rte_eth_tx_queue_setup: err=%d, "
-					"port=%d\n", ret, portid);
+						"port=%d\n", ret, portid);
 
 			tx_thread[lcore_id].tx_queue_id[portid] = queueid;
 			queueid++;
@@ -3769,13 +3777,13 @@ main(int argc, char **argv)
 
 		if (rte_lcore_is_enabled(lcore_id) == 0) {
 			rte_exit(EXIT_FAILURE,
-					"Cannot start Rx thread on lcore %u: lcore disabled\n",
-					lcore_id
-				);
+					 "Cannot start Rx thread on lcore %u: lcore disabled\n",
+					 lcore_id
+			);
 		}
 
 		printf("\nInitializing rx queues for Rx thread %d on lcore %u ... ",
-				i, lcore_id);
+			   i, lcore_id);
 		fflush(stdout);
 
 		/* init RX queues */
@@ -3792,9 +3800,9 @@ main(int argc, char **argv)
 			fflush(stdout);
 
 			ret = rte_eth_rx_queue_setup(portid, queueid, nb_rxd,
-					socketid,
-					NULL,
-					pktmbuf_pool[socketid]);
+										 socketid,
+										 NULL,
+										 pktmbuf_pool[socketid]);
 			if (ret < 0)
 				rte_exit(EXIT_FAILURE, "rte_eth_rx_queue_setup: err=%d, "
 						"port=%d\n", ret, portid);
@@ -3812,7 +3820,7 @@ main(int argc, char **argv)
 		ret = rte_eth_dev_start(portid);
 		if (ret < 0)
 			rte_exit(EXIT_FAILURE, "rte_eth_dev_start: err=%d, port=%d\n",
-				ret, portid);
+					 ret, portid);
 
 		/*
 		 * If enabled, put device in promiscuous mode.
@@ -3836,16 +3844,16 @@ main(int argc, char **argv)
 
 			if (parse_ptype_on) {
 				if (!rte_eth_add_rx_callback(portid, queueid,
-						cb_parse_ptype, NULL))
+											 cb_parse_ptype, NULL))
 					rte_exit(EXIT_FAILURE,
-						"Failed to add rx callback: "
-						"port=%d\n", portid);
+							 "Failed to add rx callback: "
+									 "port=%d\n", portid);
 			} else if (!check_ptype(portid))
 				rte_exit(EXIT_FAILURE,
-					"Port %d cannot parse packet type.\n\n"
-					"Please add --parse-ptype to use sw "
-					"packet type analyzer.\n\n",
-					portid);
+						 "Port %d cannot parse packet type.\n\n"
+								 "Please add --parse-ptype to use sw "
+								 "packet type analyzer.\n\n",
+						 portid);
 		}
 	}
 

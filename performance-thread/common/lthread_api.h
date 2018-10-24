@@ -256,6 +256,10 @@ void lthread_scheduler_shutdown_all(void);
 
 void lthread_run(void);
 
+////add my Haiping Wang
+int launch_batch_nfs(struct lthread **new_lt, int batch_size, lthread_func_t fun, ...);
+int launch_sfc(struct lthread **new_lt, int batch_size, ...);
+
 /**
   * Create an lthread
   *

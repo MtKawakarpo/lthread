@@ -208,6 +208,50 @@ void _lthread_set_stack(struct lthread *lt, void *stack, size_t stack_size)
 }
 
 /*
+ * launch a batch nfs of the same func with diferent params
+ */
+int launch_batch_nfs(struct lthread **new_lt, int batch_size, lthread_func_t fun, ...){
+
+	int i;
+	int thread_id;
+	va_list arg;
+	va_start(arg, batch_size);
+	for(i = 0;i<batch_size; i++){
+		thread_id = lthread_create(&new_lt[i], -1, fun, va_arg(arg, void *));
+		new_lt[i]->belong_to_sfc = 0;
+	}
+	printf(">launch a batch of nf: %d\n",batch_size);
+	return 0;
+}
+/*
+ * launch a chain of nfs with different funcs and params
+ */
+int launch_sfc(struct lthread **new_lt, int batch_size, ...){
+
+	int i, thread_id;
+	lthread_func_t fun;
+	va_list arg;
+	va_start(arg,batch_size * 2);
+	for(i = 0;i<batch_size;i++){
+		fun = va_arg(arg, lthread_func_t);
+		thread_id = lthread_create(&new_lt[i], -1, fun, va_arg(arg, void *));
+		new_lt[i]->belong_to_sfc = 1;
+		if(i>0) {
+			new_lt[i - 1]->next_hop_nf_tid = thread_id;
+		}
+	}
+	printf(">launch sfc: ");
+	for(i = 0;i<batch_size; i++){
+		if(i == 0)
+			printf("%d", new_lt[i]->thread_id);
+		else
+			printf("-->%d", new_lt[i-1]->next_hop_nf_tid);
+	}
+	printf("\n");
+	return 0;
+}
+
+/*
  * Create an lthread on the current scheduler
  * If there is no current scheduler on this pthread then first create one
  */
@@ -257,7 +301,7 @@ lthread_create(struct lthread **new_lt, int lcore_id,
 
 	rte_wmb();
 	_ready_queue_insert(_lthread_sched_get(lcore_id), lt);
-	printf("create and insert lt %d into core %d\n", lt->thread_id, lcore_id);
+	printf(">create and insert lt %d into core %d\n", lt->thread_id, lcore_id);
 	return tid;
 }
 
@@ -278,8 +322,6 @@ static inline void _lthread_sched_sleep(struct lthread *lt, uint64_t nsecs)
 	DIAG_EVENT(lt, LT_DIAG_LTHREAD_SLEEP, clks, 0);
 	_suspend();
 }
-
-
 
 /*
  * Cancels any running timer.

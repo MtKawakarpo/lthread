@@ -396,7 +396,7 @@ static inline void _lthread_resume(struct lthread *lt)
 	}
 
 	if (state & BIT(ST_LT_INIT)) {
-		printf("lt state = init\n");
+//		printf("lt state = init\n");
 		/* first time this thread has been run */
 		/* assign thread to this scheduler */
 		lt->sched = THIS_SCHED;
@@ -432,7 +432,6 @@ static inline void _lthread_resume(struct lthread *lt)
 	 * This applies to blocking on mutex, cond, and to set_affinity
 	 */
 
-	//check if it should be migrated
 //    printf("return core %d\n", sched->lcore_id);
 
 	//TODO:

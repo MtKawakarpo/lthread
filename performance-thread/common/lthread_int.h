@@ -187,8 +187,11 @@ struct lthread {
 	size_t last_stack_size;			/* last yield  stack_size */
 	lthread_func_t fun;			/* func ctx is running */
 	void *arg;				/* func args passed to func */
-	//FIXME:add for test, should be deleted later
+	//FIXME:add
 	int thread_id;
+	uint8_t belong_to_sfc; /* distinguish nf:0 and sfc:1 */
+	int next_hop_nf_tid; /* record next hop nf thread_id: 0 for the last hop */
+
 	void *per_lthread_data;			/* per lthread user data */
 	lthread_exit_func exit_handler;		/* called when thread exits */
 	uint64_t birth;				/* time lthread was born */
