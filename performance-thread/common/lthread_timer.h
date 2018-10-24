@@ -39,8 +39,8 @@
 extern "C" {
 #endif
 
-#include "lthread_int.h"
-#include "lthread_sched.h"
+#include "nf_lthread_int.h"
+#include "nf_lthread_sched.h"
 
 
 static inline uint64_t

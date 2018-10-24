@@ -77,7 +77,7 @@
 #include <cmdline_parse.h>
 #include <cmdline_parse_etheraddr.h>
 
-#include <lthread_api.h>
+#include <nf_lthread_api.h>
 #include <thread_manager.h>
 #include<time.h>
 
@@ -2064,14 +2064,7 @@ cpu_load_collector(__rte_unused void *arg) {
  *
  * This loop is used to start empty scheduler on lcore.
  */
-static void
-lthread_null(__rte_unused void *args)
-{
-	int lcore_id = rte_lcore_id();
 
-	RTE_LOG(INFO, L3FWD, "Starting scheduler on lcore %d.\n", lcore_id);
-	lthread_exit(NULL);
-}
 
 /* main processing loop */
 static void
@@ -2093,7 +2086,9 @@ lthread_tx_per_ring(void *dummy)
 	/*
 	 * Move this lthread to lcore
 	 */
-	lthread_set_affinity(NULL, tx_conf->conf.lcore_id);
+//	printf("tx %d call set_affinicy...\n", tx_conf->conf.thread_id);
+//	lthread_set_affinity(NULL, tx_conf->conf.lcore_id);
+//	printf("tx %d return\n", tx_conf->conf.thread_id);
 
 	RTE_LOG(INFO, L3FWD, "entering main tx loop on lcore %u\n", rte_lcore_id());
 
@@ -2150,7 +2145,9 @@ lthread_tx(void *args)
 	/*
 	 * Move this lthread to the selected lcore
 	 */
-	lthread_set_affinity(NULL,tx_conf->conf.lcore_id);
+	printf("tx %d call set_affinicy...\n", tx_conf->conf.thread_id);
+	lthread_set_affinity(NULL, tx_conf->conf.lcore_id);
+//	printf("tx %d return\n", tx_conf->conf.thread_id);
 
 	/*
 	 * Spawn tx readers (one per input ring)
@@ -2366,11 +2363,18 @@ lthread_spawner(__rte_unused void *arg) {
 		lthread_join(lt[i], NULL);
 
 }
+static void
+lthread_null(__rte_unused void *args)
+{
+	int lcore_id = rte_lcore_id();
 
-/*
- * Start master scheduler with initial lthread spawning rx and tx lthreads
- * (main_lthread_master).
- */
+	printf("Starting scheduler on lcore %d.\n", lcore_id);
+	lthread_exit(NULL);
+}
+///*
+// * Start master scheduler with initial lthread spawning rx and tx lthreads
+// * (main_lthread_master).
+// */
 static int
 lthread_master_spawner(__rte_unused void *arg) {
 	struct lthread *lt;
@@ -2378,16 +2382,17 @@ lthread_master_spawner(__rte_unused void *arg) {
 	long long thread_id;
 
 	RTE_PER_LCORE(lcore_conf) = &lcore_conf[lcore_id];
-//	lthread_create(&lt, -1, lthread_spawner, NULL);
 	launch_batch_nfs(&lt, 1, lthread_spawner, NULL);
-	lthread_run();
+	//call scheduler
+    //TODO: call different scheduler on different cores
+	slave_scheduler_run();
 
 	return 0;
 }
-
-/*
- * Start scheduler on lcore.
- */
+//
+///*
+// * Start scheduler on lcore.
+// */
 static int
 sched_spawner(__rte_unused void *arg) {
 	struct lthread *lt;
@@ -2404,8 +2409,10 @@ sched_spawner(__rte_unused void *arg) {
 	RTE_PER_LCORE(lcore_conf) = &lcore_conf[lcore_id];
 	//tid=1008: spawner
 //	lthread_create(&lt, -1, lthread_null, NULL);
+	//TODO: launching nf should transfer to master scheduler to do
 	launch_batch_nfs(&lt, 1, lthread_null, NULL);
-	lthread_run();
+
+	slave_scheduler_run();
 
 	return 0;
 }
@@ -3868,6 +3875,8 @@ main(int argc, char **argv)
 			nb_lcores--;
 #endif
 
+        //TODO: call this in nf_lthread lib
+//		launch_scheduler(nb_lcores);
 		lthread_num_schedulers_set(nb_lcores);
 		rte_eal_mp_remote_launch(sched_spawner, NULL, SKIP_MASTER);
 		lthread_master_spawner(NULL);

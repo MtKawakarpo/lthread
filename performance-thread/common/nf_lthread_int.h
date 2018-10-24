@@ -80,8 +80,8 @@ extern "C" {
 #include <rte_spinlock.h>
 #include <ctx.h>
 
-#include <lthread_api.h>
-#include "lthread.h"
+#include "nf_lthread_api.h"
+#include "nf_lthread.h"
 #include "lthread_diag.h"
 #include "lthread_tls.h"
 

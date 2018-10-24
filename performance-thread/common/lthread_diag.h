@@ -44,7 +44,7 @@ extern "C" {
 #include <rte_log.h>
 #include <rte_common.h>
 
-#include "lthread_api.h"
+#include "nf_lthread_api.h"
 #include "lthread_diag_api.h"
 
 extern diag_callback diag_cb;

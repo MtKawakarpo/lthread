@@ -84,9 +84,10 @@
 #include <rte_common.h>
 #include <rte_branch_prediction.h>
 
-#include "lthread_api.h"
-#include "lthread_int.h"
-#include "lthread_sched.h"
+#include "nf_lthread_api.h"
+#include "nf_lthread_int.h"
+#include "nf_lthread_sched.h"
+#include "core_manager.h"
 #include "lthread_objcache.h"
 #include "lthread_timer.h"
 #include "lthread_mutex.h"
@@ -102,10 +103,10 @@
  * Currently once a scheduler is created it cannot be destroyed
  * When a scheduler shuts down it is assumed that the application is terminating
  */
-
 //全局变量都要设为原子变量，原子操作
 static rte_atomic16_t num_schedulers;
 static rte_atomic16_t active_schedulers;
+
 
 /* one scheduler per lcore */
 RTE_DEFINE_PER_LCORE(struct lthread_sched *, this_sched) = NULL;
@@ -128,6 +129,8 @@ void lthread_sched_ctor(void)
 	rte_atomic16_set(&num_schedulers, 1);
 	rte_atomic16_init(&active_schedulers);
 	rte_atomic16_set(&active_schedulers, 0);
+	rte_atomic16_init(&num_nf_threads);
+	rte_atomic16_set(&num_nf_threads, 0);
 	diag_cb = NULL;
 }
 
@@ -280,6 +283,7 @@ struct lthread_sched *_lthread_sched_create(size_t stack_size)
 	     rte_calloc_socket(NULL, 1, sizeof(struct lthread_sched),
 				RTE_CACHE_LINE_SIZE,
 				rte_socket_id());
+//	printf("finish allocate sched\n");
 	if (new_sched == NULL) {
 		RTE_LOG(CRIT, LTHREAD,
 			"Failed to allocate memory for scheduler\n");
@@ -287,12 +291,14 @@ struct lthread_sched *_lthread_sched_create(size_t stack_size)
 	}
 
 	_lthread_key_pool_init();
+//	printf("finish init pool\n");
 
 	new_sched->stack_size = stack_size;
 	new_sched->birth = rte_rdtsc();
 	THIS_SCHED = new_sched;
 
 	status = _lthread_sched_alloc_resources(new_sched);
+//	printf("finish init all date struct\n");
 	if (status != SCHED_ALLOC_OK) {
 		RTE_LOG(CRIT, LTHREAD,
 			"Failed to allocate resources for scheduler code = %d\n",
@@ -308,6 +314,7 @@ struct lthread_sched *_lthread_sched_create(size_t stack_size)
 	schedcore[lcoreid] = new_sched;
 
 	new_sched->run_flag = 1;
+//	printf("finish create scheduler %d\n", schedcore[lcoreid]->lcore_id);
 
 	DIAG_EVENT(new_sched, LT_DIAG_SCHED_CREATE, rte_lcore_id(), 0);
 
@@ -379,9 +386,11 @@ static inline void _lthread_resume(struct lthread *lt)
 	struct lthread_sched *sched = THIS_SCHED;
 	struct lthread_stack *s;
 	uint64_t state = lt->state;
+	int ret;
 #if LTHREAD_DIAG
 	int init = 0;
 #endif
+
 
 	sched->current_lthread = lt;
 
@@ -419,11 +428,12 @@ static inline void _lthread_resume(struct lthread *lt)
 	DIAG_EVENT(lt, LT_DIAG_LTHREAD_RESUMED, init, lt);
 
 	/* switch to the new thread */
-//	if(sched->lcore_id == 1 && lt->thread_id == 32)
+//	if(lt->thread_id == 3)
 //		printf("core %d switch to lt %d->ctx\n", sched->lcore_id, lt->thread_id);
 	ctx_switch(&lt->ctx, &sched->ctx);
     //FIXME:thread call yield() return here
-//    if(lt->thread_id == 32)
+
+//    if(lt->thread_id == 3)
 //        printf("lt %d return core %d\n", lt->thread_id, sched->lcore_id);
 
 	/* If posting to a queue that could be read by another lcore
@@ -561,60 +571,98 @@ void add_res_manage(void){
 	 * TODO: call int add_one_core(uint16_t priority, uint64_t drop_rate)
 	 */
 }
+//add by Haiping Wang
+
 /*
- * Run the lthread scheduler
- * This loop is the heart of the system
+ * Start master scheduler with initial lthread spawning rx and tx lthreads
+ * (main_lthread_master).
  */
-void lthread_run(void)
+static int
+lthread_master_spawner(__rte_unused void *arg) {
+	struct lthread *lt;
+	int lcore_id = rte_lcore_id();
+	long long thread_id;
+
+//	RTE_PER_LCORE(lcore_conf) = &lcore_conf[lcore_id];
+//	launch_batch_nfs(&lt, 1, lthread_spawner, NULL);
+	//call scheduler
+	//TODO: call different scheduler on different cores
+	slave_scheduler_run();
+
+	return 0;
+}
+static void
+lthread_null(__rte_unused void *args)
 {
+	int lcore_id = rte_lcore_id();
+
+	printf("Starting scheduler on lcore %d.\n", lcore_id);
+	lthread_exit(NULL);
+}
+/*
+ * Start scheduler on lcore.
+ */
+static int
+sched_spawner(__rte_unused void *arg) {
+	struct lthread *lt;
+	int lcore_id = rte_lcore_id();
+
+	//tid=1008: spawner
+//	lthread_create(&lt, -1, lthread_null, NULL);
+	//TODO: launching nf should transfer to master scheduler to do
+	launch_batch_nfs(&lt, 1, lthread_null, NULL);
+
+	slave_scheduler_run();
+
+	return 0;
+}
+
+void launch_scheduler(){
+//	rte_eal_mp_remote_launch(sched_spawner, NULL, SKIP_MASTER);
+//	struct lthread *lt;
+//	launch_batch_nfs(&lt, 1, lthread_null, NULL);
+	//TODO: nb_lcores should get from CM
+	int nb_lcores = 3;
+	lthread_num_schedulers_set(nb_lcores);
+	rte_eal_mp_remote_launch(sched_spawner, NULL, SKIP_MASTER);
+}
+/*
+ * Run the master thread scheduler
+ */
+void slave_scheduler_run(void){
 
 	struct lthread_sched *sched = THIS_SCHED;
 	struct lthread *lt = NULL;
-	uint16_t drop_rate = 0;
+	int ret;
+	int cnt = 0;
 
 	RTE_LOG(INFO, LTHREAD,
-		"starting scheduler %p on lcore %u phys core %u\n",
-		sched, rte_lcore_id(),
-		rte_lcore_index(rte_lcore_id()));
+			"starting master scheduler %p on lcore %u phys core %u\n",
+			sched, rte_lcore_id(),
+			rte_lcore_index(rte_lcore_id()));
 
-	/* if more than one, wait for all schedulers to start */
-	_lthread_schedulers_sync_start();
-
-
-	/*
-	 * This is the main scheduling loop
-	 * So long as there are tasks in existence we run this loop.
-	 * We check for:-
-	 *   expired timers,
-	 *   the local ready queue,
-	 *   and the peer ready queue,
-	 *
-	 * and resume lthreads ad infinitum.
-	 */
 	while (!_lthread_sched_isdone(sched)) {
 
 		rte_timer_manage();
+		update_dr_vector();
+		cnt++;
 
 		lt = _lthread_queue_poll(sched->ready);
 		if (lt != NULL) {
-//			if(sched->lcore_id == 1 && lt->thread_id == 30)
-//				printf("core %d get a lt %dfrom ready\n", sched->lcore_id, lt->thread_id);
+//			if(cnt>100){
+				//check drop rate
+				ret = checkIsDrop(lt->thread_id);
+				//	printf("thread %d call check drop, ret %d\n", lt->thread_id, ret);
+				if(ret >=0){
+					printf("thread %d get ret = %d\n",lt->thread_id, ret);
+					lt->should_migrate = ret;
+				}else if(ret == -2){
+					//TODO: call add core from CM
+				}
 
-			// FIXME:for nfv test, modify later
-//			printf("core %d check for drop rate\n", sched->lcore_id);
-//			if(check_nf_droprate(sched->lcore_id, lt)>0){
-//				lt->should_migrate = 1;
-//				printf("scheduler mark lt %d to should migrate to 1\n", lt->thread_id);
 //			}
-//            if(lt->thread_id == 32 && sched->lcore_id == 1){
-//                printf("core %d get lt %d from ready\n", sched->lcore_id, lt->thread_id);
-//            }
-//			if(sched->lcore_id!=0)
-//				printf("core %d resum a lt %d\n", sched->lcore_id,lt->thread_id);
-			_lthread_resume(lt);
-//			if(sched->lcore_id!=0)
-//				printf("core %d finish lt %d\n", sched->lcore_id, lt->thread_id);
 
+			_lthread_resume(lt);
 		}
 		lt = _lthread_queue_poll(sched->pready);
 		if (lt != NULL) {
@@ -630,11 +678,86 @@ void lthread_run(void)
 	(THIS_SCHED) = NULL;
 
 	RTE_LOG(INFO, LTHREAD,
-		"stopping scheduler %p on lcore %u phys core %u\n",
-		sched, rte_lcore_id(),
-		rte_lcore_index(rte_lcore_id()));
+			"stopping scheduler %p on lcore %u phys core %u\n",
+			sched, rte_lcore_id(),
+			rte_lcore_index(rte_lcore_id()));
 	fflush(stdout);
+
 }
+/*
+ * Run the slave thread scheduler
+ * This loop is the heart of the system
+// */
+//void master_scheduler_run(void)
+//{
+//
+//	struct lthread_sched *sched = THIS_SCHED;
+//	struct lthread *lt = NULL;
+//	uint16_t drop_rate = 0;
+//
+//	RTE_LOG(INFO, LTHREAD,
+//		"starting slave scheduler %p on lcore %u phys core %u\n",
+//		sched, rte_lcore_id(),
+//		rte_lcore_index(rte_lcore_id()));
+//
+//	/* if more than one, wait for all schedulers to start */
+//	_lthread_schedulers_sync_start();
+//
+//
+//	/*
+//	 * This is the main scheduling loop
+//	 * So long as there are tasks in existence we run this loop.
+//	 * We check for:-
+//	 *   expired timers,
+//	 *   the local ready queue,
+//	 *   and the peer ready queue,
+//	 *
+//	 * and resume lthreads ad infinitum.
+//	 */
+//	while (!_lthread_sched_isdone(sched)) {
+//
+//		rte_timer_manage();
+//
+//		lt = _lthread_queue_poll(sched->ready);
+//		if (lt != NULL) {
+////			if(sched->lcore_id == 1 && lt->thread_id == 30)
+////				printf("core %d get a lt %dfrom ready\n", sched->lcore_id, lt->thread_id);
+//
+//			// FIXME:for nfv test, modify later
+////			printf("core %d check for drop rate\n", sched->lcore_id);
+////			if(check_nf_droprate(sched->lcore_id, lt)>0){
+////				lt->should_migrate = 1;
+////				printf("scheduler mark lt %d to should migrate to 1\n", lt->thread_id);
+////			}
+////            if(lt->thread_id == 32 && sched->lcore_id == 1){
+////                printf("core %d get lt %d from ready\n", sched->lcore_id, lt->thread_id);
+////            }
+////			if(sched->lcore_id!=0)
+////				printf("core %d resum a lt %d\n", sched->lcore_id,lt->thread_id);
+//			_lthread_resume(lt);
+////			if(sched->lcore_id!=0)
+////				printf("core %d finish lt %d\n", sched->lcore_id, lt->thread_id);
+//
+//		}
+//		lt = _lthread_queue_poll(sched->pready);
+//		if (lt != NULL) {
+//			printf("core %d get a lt %d from pready queue\n", sched->lcore_id, lt->thread_id);
+//			_lthread_resume(lt);
+//		}
+//	}
+//
+//
+//	/* if more than one wait for all schedulers to stop */
+//	_lthread_schedulers_sync_stop();
+//
+//	(THIS_SCHED) = NULL;
+//
+//	RTE_LOG(INFO, LTHREAD,
+//		"stopping scheduler %p on lcore %u phys core %u\n",
+//		sched, rte_lcore_id(),
+//		rte_lcore_index(rte_lcore_id()));
+//	fflush(stdout);
+//}
 
 /*
  * Return the scheduler for this lcore
@@ -675,16 +798,6 @@ int lthread_set_affinity(struct lthread *lt, unsigned lcoreid)
 		printf("set lt %d to be scheduled on core %d\n", lt->thread_id, dest_sched->lcore_id);
 		lt->pending_wr_queue = dest_sched->pready;
 		_affinitize();
-		//expand
-//		struct lthread *lt2 = THIS_LTHREAD;
-//		printf("callee _affinizie\n");
-		//FIXME:bug here, crash at here
-//		printf("lt %d\n", lt->thread_id);
-//		printf("core %d\n", THIS_SCHED->lcore_id);
-
-//		DIAG_EVENT(lt, LT_DIAG_LTHREAD_SUSPENDED, 0, 0);
-//		ctx_switch(&(THIS_SCHED)->ctx, &lt2->ctx);
-		//end
 //		printf("finish _affinize\n");
 		return 0;
 	}

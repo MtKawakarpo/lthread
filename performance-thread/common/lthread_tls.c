@@ -52,7 +52,7 @@
 #include "lthread_tls.h"
 #include "lthread_queue.h"
 #include "lthread_objcache.h"
-#include "lthread_sched.h"
+#include "nf_lthread_sched.h"
 
 static struct rte_ring *key_pool;
 static uint64_t key_pool_init;
@@ -86,6 +86,7 @@ void _lthread_key_pool_init(void)
 	/* only one lcore should do this */
 	if (rte_atomic64_cmpset(&key_pool_init, 0, 1)) {
 
+//		printf("core %d init key pool\n", rte_lcore_id());
 		snprintf(name,
 			MAX_LTHREAD_NAME_SIZE,
 			"lthread_key_pool_%d",
@@ -94,7 +95,7 @@ void _lthread_key_pool_init(void)
 		pool = rte_ring_create(name,
 					LTHREAD_MAX_KEYS, 0, 0);
 		RTE_ASSERT(pool);
-
+//		printf("sucss\n");
 		int i;
 
 		for (i = 1; i < LTHREAD_MAX_KEYS; i++) {
@@ -102,6 +103,7 @@ void _lthread_key_pool_init(void)
 			rte_ring_mp_enqueue((struct rte_ring *)pool,
 						(void *)new_key);
 		}
+//		printf("sucess enqueue\n");
 		key_pool = pool;
 	}
 	/* other lcores wait here till done */

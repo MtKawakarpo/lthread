@@ -43,7 +43,7 @@ extern "C" {
 #include <rte_malloc.h>
 #include <rte_memory.h>
 
-#include "lthread_int.h"
+#include "nf_lthread_int.h"
 #include "lthread_diag.h"
 #include "lthread_queue.h"
 

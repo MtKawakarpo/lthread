@@ -49,10 +49,10 @@
 #include <rte_spinlock.h>
 #include <rte_common.h>
 
-#include "lthread_api.h"
-#include "lthread_int.h"
+#include "nf_lthread_api.h"
+#include "nf_lthread_int.h"
 #include "lthread_mutex.h"
-#include "lthread_sched.h"
+#include "nf_lthread_sched.h"
 #include "lthread_queue.h"
 #include "lthread_objcache.h"
 #include "lthread_diag.h"

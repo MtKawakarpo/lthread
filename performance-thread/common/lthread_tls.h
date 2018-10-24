@@ -38,7 +38,7 @@
 extern "C" {
 #endif
 
-#include "lthread_api.h"
+#include "nf_lthread_api.h"
 
 #define RTE_PER_LTHREAD_SECTION_SIZE \
 (&__stop_per_lt - &__start_per_lt)

@@ -66,7 +66,7 @@
 extern "C" {
 #endif
 
-#include "lthread_int.h"
+#include "nf_lthread_int.h"
 #include "lthread_queue.h"
 #include "lthread_objcache.h"
 #include "lthread_diag.h"

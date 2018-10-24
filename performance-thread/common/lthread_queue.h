@@ -78,8 +78,8 @@ extern "C" {
 #include <rte_prefetch.h>
 #include <rte_per_lcore.h>
 
-#include "lthread_int.h"
-#include "lthread.h"
+#include "nf_lthread_int.h"
+#include "nf_lthread.h"
 #include "lthread_diag.h"
 #include "lthread_pool.h"
 

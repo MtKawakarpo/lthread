@@ -77,7 +77,7 @@ extern "C" {
 #include <rte_per_lcore.h>
 #include <rte_log.h>
 
-#include "lthread_int.h"
+#include "nf_lthread_int.h"
 #include "lthread_diag.h"
 
 /*

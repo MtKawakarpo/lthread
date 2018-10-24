@@ -6,6 +6,8 @@
 #define PERFORMANCE_THREAD_CORE_MANAGER_H
 
 #endif //PERFORMANCE_THREAD_CORE_MANAGER_H
+
+#include <nf_lthread_api.h>
 /*
  * request one core from Core Manager
  *
@@ -44,4 +46,59 @@ int register_Agent(uint16_t priority){
 
 int get_drop_rate_vector(void){
 
+}
+
+//api from vswitch
+/*
+ *
+ */
+int registerMonitor(int Agent_id, uint64_t queue_mask_count){
+
+}
+void updateMapping(void){
+
+}
+int updateDropVector(void){
+    static int iteration = 0;
+    iteration++;
+    //TODO: iteration time can be change
+    if(iteration % 1000 == 0){
+        //TODO: call vswitch to update
+   }
+
+}
+
+//TODO: this should be a shared variable with vSwitch
+static uint64_t nf_drop_vector = 32;//binary code: 1000
+static uint64_t core_drop_vector = 0;
+
+int checkIsDrop(int thread_id){
+    int i;
+    int nb_cores = core_mask | 0xff;
+    static int last_idle_core_0 = 0;
+    last_idle_core_0 = core_list[0];
+    uint64_t tmp_dv = nf_drop_vector;
+    uint64_t tmp_core_dv = core_drop_vector;
+    uint64_t bit_base = 1;
+
+    /* note: now just support 127 cores and 127 threads per core ar most */
+    uint8_t drop = (tmp_dv>>thread_id)&1UL;
+    if(drop == 1){
+        if((((tmp_core_dv>>last_idle_core_0)&1UL)==0)){
+            nf_drop_vector &=  (~(bit_base<<thread_id));
+            printf(">>>suggest thread %d to migrate to %d, reset dv to %d\n", thread_id, last_idle_core_0, nf_drop_vector);
+            return last_idle_core_0;
+        }
+
+        for(i = 0;i<nb_cores;i++){
+            tmp_core_dv = core_drop_vector;
+            if(((tmp_core_dv>>core_list[i])&1UL)==0){
+                last_idle_core_0 = core_list[i];
+                printf(">>suggest thread %d to migrate to %d", thread_id, core_list[i]);
+                return core_list[i];//migrate to core core_list[i]
+            }
+        }
+        return -2;// no core available, should add core
+    }else
+        return -1;// no drop
 }

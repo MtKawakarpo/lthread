@@ -4,7 +4,7 @@
 
 #include <rte_ethdev.h>
 #include <rte_ring.h>
-#include "lthread.h"
+#include "nf_lthread.h"
 #include "thread_manager.h"
 
 

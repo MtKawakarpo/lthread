@@ -38,7 +38,7 @@
 #include "lthread_queue.h"
 #include "lthread_pool.h"
 #include "lthread_objcache.h"
-#include "lthread_sched.h"
+#include "nf_lthread_sched.h"
 #include "lthread_diag_api.h"
 
 

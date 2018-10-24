@@ -68,7 +68,7 @@
 extern "C" {
 #endif
 
-#include "lthread_int.h"
+#include "nf_lthread_int.h"
 
 /*
  * Sets up the initial stack for the lthread.

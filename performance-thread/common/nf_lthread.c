@@ -79,15 +79,14 @@
 #include <ctx.h>
 #include <stack.h>
 
-#include "lthread_api.h"
-#include "lthread.h"
+#include "nf_lthread_api.h"
+#include "nf_lthread.h"
 #include "lthread_timer.h"
 #include "lthread_tls.h"
 #include "lthread_objcache.h"
 #include "lthread_diag.h"
 
-//static long long thread_counter = 0;
-rte_atomic16_t thread_counter;  /**< Number of  threads */
+//static long long num_nf_threads = 0;
 
 /*
  * This function gets called after an lthread function has returned.
@@ -178,7 +177,7 @@ _lthread_init(struct lthread *lt,
 	lthread_func_t fun, void *arg, lthread_exit_func exit_handler,   uint16_t thread_id)
 {
 
-	printf("init lt %d\n", lt->thread_id);
+//	printf("init lt %d\n", lt->thread_id);
 	/* set ctx func and args */
 	lt->fun = fun;
 	lt->arg = arg;
@@ -220,7 +219,7 @@ int launch_batch_nfs(struct lthread **new_lt, int batch_size, lthread_func_t fun
 		thread_id = lthread_create(&new_lt[i], -1, fun, va_arg(arg, void *));
 		new_lt[i]->belong_to_sfc = 0;
 	}
-	printf(">launch a batch of nf: %d\n",batch_size);
+//	printf(">launch a batch of nf: %d\n",batch_size);
 	return 0;
 }
 /*
@@ -240,14 +239,14 @@ int launch_sfc(struct lthread **new_lt, int batch_size, ...){
 			new_lt[i - 1]->next_hop_nf_tid = thread_id;
 		}
 	}
-	printf(">launch sfc: ");
-	for(i = 0;i<batch_size; i++){
-		if(i == 0)
-			printf("%d", new_lt[i]->thread_id);
-		else
-			printf("-->%d", new_lt[i-1]->next_hop_nf_tid);
-	}
-	printf("\n");
+//	printf(">launch sfc: ");
+//	for(i = 0;i<batch_size; i++){
+//		if(i == 0)
+//			printf("%d", new_lt[i]->thread_id);
+//		else
+//			printf("-->%d", new_lt[i-1]->next_hop_nf_tid);
+//	}
+//	printf("\n");
 	return 0;
 }
 
@@ -268,8 +267,8 @@ lthread_create(struct lthread **new_lt, int lcore_id,
 		return POSIX_ERRNO(EINVAL);
 
 	struct lthread *lt = NULL;
-	int tid = rte_atomic16_read(&thread_counter);
-	rte_atomic16_inc(&thread_counter);
+	int tid = rte_atomic16_read(&num_nf_threads);
+	rte_atomic16_inc(&num_nf_threads);
 
 	if (THIS_SCHED == NULL) {
 		printf("> no scheduler in core %d, start one\n", lcore_id);
@@ -279,6 +278,9 @@ lthread_create(struct lthread **new_lt, int lcore_id,
 			return POSIX_ERRNO(EAGAIN);
 		}
 	}
+
+	//set mapping, when migrate nf, reset it
+	core_nf_mapping[tid] = lcore_id;
 
 	/* allocate a thread structure */
 	lt = _lthread_objcache_alloc((THIS_SCHED)->lthread_cache);
@@ -449,7 +451,7 @@ void lthread_yield(void)
 
 	DIAG_EVENT(lt, LT_DIAG_LTHREAD_YIELD, 0, 0);
 
-//	if(lt->thread_id == 32) {
+//	if(lt->thread_id == 6) {
 //        printf("lt %d see THIS_SCHED = %d\n", lt->thread_id, THIS_SCHED->lcore_id);
 //    }
     if(should_migrate == 0) {
@@ -461,10 +463,9 @@ void lthread_yield(void)
     }
     else{
         int dst_core = lt->should_migrate;
-//        printf("lt %d found it should migrate to core %d\n, dont insert itself to current scheduler ready\n",dst_core, lt->thread_id);
+        printf(">>>lt %d found it should migrate to core %d\n, dont insert itself to current scheduler ready\n", lt->thread_id ,dst_core);
         //FIXME:lt->should_migrate应该让scheduler还是线程自己置0?多个写者会不会有问题？
         lt->should_migrate = 0;
-//		printf("thread %d migrtae from core %d to core %d\n", lt->thread_id, sched->lcore_id, schedcore[dst_core]->lcore_id);
         lthread_set_affinity(lt, dst_core);
     }
 
