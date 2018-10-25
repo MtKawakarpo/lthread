@@ -3858,7 +3858,6 @@ main(int argc, char **argv)
 	if (lthreads_on) {
 		printf("Starting L-Threading Model\n");
 
-
 		nb_lcores = init_Agent(nb_lcores);
 		//TODO: call this in nf_lthread lib
 //		launch_scheduler(nb_lcores);
