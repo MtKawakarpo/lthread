@@ -42,7 +42,7 @@ include $(RTE_SDK)/mk/rte.vars.mk
 APP = l3fwd-thread
 
 # all source are stored in SRCS-y
-SRCS-y := main.c
+SRCS-y := flow_distributer.c main.c
 
 include $(LTHREAD_SDK)/elastic-nf-thread/nfthread-lib/common.mk
 
