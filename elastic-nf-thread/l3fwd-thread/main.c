@@ -2327,10 +2327,11 @@ lthread_spawner(__rte_unused void *arg) {
 		rx_thread[i].conf.thread_id = i;
 		n_thread++;
 	}
-//	launch_batch_nfs(lt, n_rx_thread, lthread_rx, (void *)&rx_thread[0], (void *)&rx_thread[1], (void *)&rx_thread[2]);
+    launch_batch_nfs(lt, &lcore_id, n_rx_thread, lthread_rx, (void *)&rx_thread[0],
+                     (void *)&rx_thread[1], (void *)&rx_thread[2]);
 	//FIXME: now just support 3 rx thread
-	launch_sfc(lt, &lcore_id, n_rx_thread, lthread_rx, (void *)&rx_thread[0],
-			   lthread_rx, (void *)&rx_thread[1], lthread_rx, (void *)&rx_thread[2]);
+//	launch_sfc(lt, &lcore_id, n_rx_thread, lthread_rx, (void *)&rx_thread[0],
+//			   lthread_rx, (void *)&rx_thread[1], lthread_rx, (void *)&rx_thread[2]);
 	rx_thread[0].conf.lcore_id = rx_thread[1].conf.lcore_id = rx_thread[2].conf.lcore_id = lcore_id;
 
 	/*
