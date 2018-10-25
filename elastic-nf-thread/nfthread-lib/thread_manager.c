@@ -28,6 +28,19 @@ unsigned nf_eth_rx_burst(uint16_t port_id, uint16_t queue_id,
     return nb_rx;
 }
 
+//
+//unsigned nf_eth_rx_burst(uint16_t port_id, uint16_t queue_id,
+//                         struct rte_mbuf **rx_bufs, const uint16_t burst_size){
+//
+//    uint16_t nb_rx = rte_eth_rx_burst(port_id, queue_id, rx_bufs, burst_size);
+//    if (unlikely(nb_rx == 0)) {
+////     printf("call yield\n");
+//        lthread_yield();
+//    }
+//    //TODO: 基于阈值
+//    return nb_rx;
+//}
+
 /*
  * like rte_eth_tx_burst
  */
@@ -58,6 +71,7 @@ int nf_ring_dequeue(struct rte_ring *rx_ring, void **pkt){
 
 }
 
+
 /*
  * like rte_ring_dequeue_bulk
  */
@@ -73,7 +87,7 @@ unsigned int nf_ring_dequeue_bulk	(struct rte_ring *rx_ring, void **rx_bufs,
  */
 unsigned nf_ring_dequeue_burst(struct rte_ring *rx_ring, void **rx_bufs,
                                                           unsigned int burst_size, unsigned int *available){
-    uint16_t nb_rx = rte_ring_dequeue_burst(rx_ring, rx_bufs, burst_size, NULL);
+    uint16_t nb_rx = rte_ring_sc_dequeue_bulk(rx_ring, rx_bufs, burst_size, NULL);
     if(unlikely(nb_rx == 0)){
         lthread_yield();
     }
