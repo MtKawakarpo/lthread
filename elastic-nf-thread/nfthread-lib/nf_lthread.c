@@ -207,16 +207,25 @@ void _lthread_set_stack(struct lthread *lt, void *stack, size_t stack_size)
 }
 
 /*
+ * initialize cores
+// */
+//void init_cores(int nb_lcores){
+//
+//	lthread_num_schedulers_set(nb_lcores);
+//
+//
+//}
+/*
  * launch a batch nfs of the same func with diferent params
  */
-int launch_batch_nfs(struct lthread **new_lt, int batch_size, lthread_func_t fun, ...){
+int launch_batch_nfs(struct lthread **new_lt, int *lcore_id, int batch_size, lthread_func_t fun, ...){
 
 	int i;
 	int thread_id;
 	va_list arg;
 	va_start(arg, batch_size);
 	for(i = 0;i<batch_size; i++){
-		thread_id = lthread_create(&new_lt[i], -1, fun, va_arg(arg, void *));
+		thread_id = lthread_create(&new_lt[i], lcore_id, fun, va_arg(arg, void *));
 		new_lt[i]->belong_to_sfc = 0;
 	}
 //	printf(">launch a batch of nf: %d\n",batch_size);
@@ -225,7 +234,7 @@ int launch_batch_nfs(struct lthread **new_lt, int batch_size, lthread_func_t fun
 /*
  * launch a chain of nfs with different funcs and params
  */
-int launch_sfc(struct lthread **new_lt, int batch_size, ...){
+int launch_sfc(struct lthread **new_lt, int *lcore_id, int batch_size, ...){
 
 	int i, thread_id;
 	lthread_func_t fun;
@@ -233,20 +242,24 @@ int launch_sfc(struct lthread **new_lt, int batch_size, ...){
 	va_start(arg,batch_size * 2);
 	for(i = 0;i<batch_size;i++){
 		fun = va_arg(arg, lthread_func_t);
-		thread_id = lthread_create(&new_lt[i], -1, fun, va_arg(arg, void *));
+		thread_id = lthread_create(&new_lt[i], lcore_id, fun, va_arg(arg, void *));
 		new_lt[i]->belong_to_sfc = 1;
+		new_lt[i]->chain_len = batch_size;
 		if(i>0) {
-			new_lt[i - 1]->next_hop_nf_tid = thread_id;
+			new_lt[i - 1]->next_hop_nf = new_lt[i];
+		}
+		if(i == batch_size-1){
+			new_lt[i]->next_hop_nf = NULL;
 		}
 	}
-//	printf(">launch sfc: ");
-//	for(i = 0;i<batch_size; i++){
-//		if(i == 0)
-//			printf("%d", new_lt[i]->thread_id);
-//		else
-//			printf("-->%d", new_lt[i-1]->next_hop_nf_tid);
-//	}
-//	printf("\n");
+	printf(">launch sfc: ");
+	for(i = 0;i<batch_size; i++){
+		if(i == 0)
+			printf("%d", new_lt[i]->thread_id);
+		else
+			printf("-->%d", new_lt[i-1]->next_hop_nf->thread_id);
+	}
+	printf("\n");
 	return 0;
 }
 
@@ -255,15 +268,15 @@ int launch_sfc(struct lthread **new_lt, int batch_size, ...){
  * If there is no current scheduler on this pthread then first create one
  */
 int
-lthread_create(struct lthread **new_lt, int lcore_id,
+lthread_create(struct lthread **new_lt, int *lcore_id,
 		lthread_func_t fun, void *arg)
 {
 	if ((new_lt == NULL) || (fun == NULL))
 		return POSIX_ERRNO(EINVAL);
 
-	if (lcore_id < 0)
-		lcore_id = rte_lcore_id();
-	else if (lcore_id > LTHREAD_MAX_LCORES)
+	if (*lcore_id < 0)
+		*lcore_id = rte_lcore_id();
+	else if (*lcore_id > LTHREAD_MAX_LCORES)
 		return POSIX_ERRNO(EINVAL);
 
 	struct lthread *lt = NULL;
@@ -271,7 +284,7 @@ lthread_create(struct lthread **new_lt, int lcore_id,
 	rte_atomic16_inc(&num_nf_threads);
 
 	if (THIS_SCHED == NULL) {
-		printf("> no scheduler in core %d, start one\n", lcore_id);
+		printf("> no scheduler in core %d, start one\n", *lcore_id);
 		THIS_SCHED = _lthread_sched_create(0);
 		if (THIS_SCHED == NULL) {
 			perror("Failed to create scheduler");
@@ -280,7 +293,7 @@ lthread_create(struct lthread **new_lt, int lcore_id,
 	}
 
 	//set mapping, when migrate nf, reset it
-	core_nf_mapping[tid] = lcore_id;
+	core_nf_mapping[tid] = *lcore_id;
 
 	/* allocate a thread structure */
 	lt = _lthread_objcache_alloc((THIS_SCHED)->lthread_cache);
@@ -295,15 +308,15 @@ lthread_create(struct lthread **new_lt, int lcore_id,
 
 	/* put it in the ready queue */
 	*new_lt = lt;
-
-	if (lcore_id < 0)
-		lcore_id = rte_lcore_id();
+//
+//	if (*lcore_id < 0)
+//		*lcore_id = rte_lcore_id();
 
 	DIAG_CREATE_EVENT(lt, LT_DIAG_LTHREAD_CREATE);
 
 	rte_wmb();
-	_ready_queue_insert(_lthread_sched_get(lcore_id), lt);
-	printf(">create and insert lt %d into core %d\n", lt->thread_id, lcore_id);
+	_ready_queue_insert(_lthread_sched_get(*lcore_id), lt);
+	printf(">create and insert lt %d into core %d\n", lt->thread_id, *lcore_id);
 	return tid;
 }
 
@@ -441,7 +454,6 @@ void lthread_sleep_clks(uint64_t clks)
 
 /*
  * Requeue the current thread to the back of the ready queue
- * TODO:尝试在这里调迁移函数
  */
 void lthread_yield(void)
 {

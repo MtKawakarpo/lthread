@@ -72,6 +72,8 @@ extern "C" {
 #include "lthread_diag.h"
 #include "ctx.h"
 
+static uint64_t core_mask_count;
+static uint8_t core_list[MAX_CORE_NUM]={0, 1, 2};
 /*
  * insert an lthread into a queue
  */

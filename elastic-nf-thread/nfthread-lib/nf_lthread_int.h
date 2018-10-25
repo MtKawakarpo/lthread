@@ -190,7 +190,8 @@ struct lthread {
 	//FIXME:add
 	int thread_id;
 	uint8_t belong_to_sfc; /* distinguish nf:0 and sfc:1 */
-	int next_hop_nf_tid; /* record next hop nf thread_id: 0 for the last hop */
+	struct lthread * next_hop_nf; /* record next hop nf thread_id: 0 for the last hop */
+	int chain_len;
 
 	void *per_lthread_data;			/* per lthread user data */
 	lthread_exit_func exit_handler;		/* called when thread exits */

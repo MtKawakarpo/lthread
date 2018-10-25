@@ -81,8 +81,6 @@ struct lthread_sched;
 static rte_atomic16_t num_nf_threads;
 //TODO:update to vswitch, get from CM
 static uint8_t core_nf_mapping[MAX_NF_NUM]={0};
-static uint64_t core_mask;
-static uint8_t core_list[MAX_CORE_NUM]={0, 1, 2};
 
 /* function to be called when a context function returns */
 typedef void (*lthread_exit_func) (struct lthread *);

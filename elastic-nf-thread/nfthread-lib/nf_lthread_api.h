@@ -257,9 +257,11 @@ void lthread_scheduler_shutdown_all(void);
 void slaver_scheduler_run(void);
 
 ////add my Haiping Wang
-int launch_batch_nfs(struct lthread **new_lt, int batch_size, lthread_func_t fun, ...);
-int launch_sfc(struct lthread **new_lt, int batch_size, ...);
+int launch_batch_nfs(struct lthread **new_lt, int *lcore_id, int batch_size, lthread_func_t fun, ...);
+int launch_sfc(struct lthread **new_lt, int *lcore_id, int batch_size, ...);
 void launch_scheduler();
+//void init_cores(int nb_cores);
+int init_Agent(int nb_cores);
 /**
   * Create an lthread
   *
@@ -286,7 +288,7 @@ void launch_scheduler();
   */
 int
 lthread_create(struct lthread **new_lt,
-		int lcore, lthread_func_t func, void *arg);
+		int *lcore, lthread_func_t func, void *arg);
 
 /**
   * Cancel an lthread
