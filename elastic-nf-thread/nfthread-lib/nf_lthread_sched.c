@@ -129,8 +129,6 @@ void lthread_sched_ctor(void)
 	memset(schedcore, 0, sizeof(schedcore));
 	try_init_Agent = 0;
 	init_Agent_suc = 0;
-	printf(">>>set rey init = %d\n", try_init_Agent);
-
 	rte_atomic16_init(&num_schedulers);
 	rte_atomic16_set(&num_schedulers, 1);
 	rte_atomic16_init(&active_schedulers);
@@ -277,20 +275,10 @@ int init_Agent(int nb_cores){
 	int i = 0, index = 0;
 	int Agent_id = 1001;
 	printf(">>>init Agent %d\n", Agent_id);
-//	if(rte_atomic64_cmpset(&try_init_Agent, 1, 0)){
-		printf("core %d try_init_Agent=%d\n",rte_lcore_id(), try_init_Agent);
-		core_mask = registerAgent(Agent_id, 1, nb_cores);
-//		init_Agent_suc = 1;
-//	}
-	//other scheduler wait until register finish
-//	while (init_Agent_suc == 0){
-////		printf("core %d check suc flag==%d\n",rte_lcore_id(), init_Agent_suc);
-//		rte_compiler_barrier();
-//		sched_yield();
-//	};
-	core_mask_count = core_mask;
-	core_mask = core_mask>>8;//bitmap
-	printf("return core cnt=%d, mask=%d\n",core_mask_count&255, core_mask);
+	core_mask = registerAgent(Agent_id, 1, nb_cores);
+	core_mask_count = core_mask;//high 56 bits for bitmap, low 8bits for count
+	core_mask = core_mask>>8;
+	printf(">>>apply core cnt=%d, mask=%d\n",core_mask_count&255, core_mask);
 	while(core_mask>0){
 		if((core_mask&1UL)==1){
 			core_list[index++]=i;
@@ -329,14 +317,11 @@ struct lthread_sched *_lthread_sched_create(size_t stack_size)
 	}
 
 	_lthread_key_pool_init();
-//	printf("finish init pool\n");
-
 	new_sched->stack_size = stack_size;
 	new_sched->birth = rte_rdtsc();
 	THIS_SCHED = new_sched;
 
 	status = _lthread_sched_alloc_resources(new_sched);
-//	printf("finish init all date struct\n");
 	if (status != SCHED_ALLOC_OK) {
 		RTE_LOG(CRIT, LTHREAD,
 			"Failed to allocate resources for scheduler code = %d\n",
@@ -352,7 +337,6 @@ struct lthread_sched *_lthread_sched_create(size_t stack_size)
 	schedcore[lcoreid] = new_sched;
 
 	new_sched->run_flag = 1;
-//	printf("finish create scheduler %d\n", schedcore[lcoreid]->lcore_id);
 
 	DIAG_EVENT(new_sched, LT_DIAG_SCHED_CREATE, rte_lcore_id(), 0);
 
@@ -363,11 +347,6 @@ struct lthread_sched *_lthread_sched_create(size_t stack_size)
 /*
  * Set the number of schedulers in the system
  */
-//int lthread_num_schedulers_set(int num)
-//{
-//	rte_atomic16_set(&num_schedulers, num);
-//	return (int)rte_atomic16_read(&num_schedulers);
-//}
 
 /*
  * Return the number of schedulers active
@@ -491,7 +470,6 @@ static inline void _lthread_resume(struct lthread *lt)
 
 		/* queue the current thread to the specified queue */
 		_lthread_queue_insert_mp(dest, lt);
-//		printf("read lt pending wr queue not null ,move to dest\n");
 	}
 
 	sched->current_lthread = NULL;
@@ -577,61 +555,8 @@ uint8_t update_dr_vector(void){
 	return ret;
 }
 
-//add by Haiping Wang
 
-/*
- * Start master scheduler with initial lthread spawning rx and tx lthreads
- * (main_lthread_master).
- */
-//static int
-//lthread_master_spawner(__rte_unused void *arg) {
-//	struct lthread *lt;
-//	int lcore_id = rte_lcore_id();
-//	long long thread_id;
-//
-////	RTE_PER_LCORE(lcore_conf) = &lcore_conf[lcore_id];
-////	launch_batch_nfs(&lt, 1, lthread_spawner, NULL);
-//	//call scheduler
-//	//TODO: call different scheduler on different cores
-//	slave_scheduler_run();
-//
-//	return 0;
-//}
-//static void
-//lthread_null(__rte_unused void *args)
-//{
-//	int lcore_id = rte_lcore_id();
-//
-//	printf("Starting scheduler on lcore %d.\n", lcore_id);
-//	lthread_exit(NULL);
-//}
-/*
- * Start scheduler on lcore.
- */
-//static int
-//sched_spawner(__rte_unused void *arg) {
-//	struct lthread *lt;
-//	int lcore_id = rte_lcore_id();
-//
-//	//tid=1008: spawner
-////	lthread_create(&lt, -1, lthread_null, NULL);
-//	//TODO: launching nf should transfer to master scheduler to do
-//	launch_batch_nfs(&lt, 1, lthread_null, NULL);
-//
-//	slave_scheduler_run();
-//
-//	return 0;
-//}
-//
-//void launch_scheduler(){
-////	rte_eal_mp_remote_launch(sched_spawner, NULL, SKIP_MASTER);
-////	struct lthread *lt;
-////	launch_batch_nfs(&lt, 1, lthread_null, NULL);
-//	//TODO: nb_lcores should get from CM
-//	int nb_lcores = 3;
-//	lthread_num_schedulers_set(nb_lcores);
-//	rte_eal_mp_remote_launch(sched_spawner, NULL, SKIP_MASTER);
-//}
+
 /*
  * Run the master thread scheduler
  */
@@ -663,7 +588,7 @@ void slave_scheduler_run(void){
 				ret = checkIsDrop(lt->thread_id);
 				//	printf("thread %d call check drop, ret %d\n", lt->thread_id, ret);
 				if(ret >=0){
-					printf("thread %d get ret = %d\n",lt->thread_id, ret);
+					printf("thread %d check dv, get ret = %d\n",lt->thread_id, ret);
                     if(lt->belong_to_sfc == 0) {
                         lt->should_migrate = ret;
                     }
@@ -680,8 +605,6 @@ void slave_scheduler_run(void){
 				}else if(ret == -2){
 					//TODO: call add core from CM
 				}
-
-//			}
 
 			_lthread_resume(lt);
 		}

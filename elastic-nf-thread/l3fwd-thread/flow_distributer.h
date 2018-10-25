@@ -26,6 +26,7 @@ struct flow {
 struct table_entry {
     uint32_t packet_hash;
     struct flow *m_flow;
+//    struct rte_ring* nf_rx_ring;
 };
 
 struct flow_table {
@@ -44,6 +45,8 @@ struct flow* add_flow(int flow_hash, int nf_id);
 void flow_table_init();
 void flow_table_add_entry(uint32_t hash, int nf_id);
 struct flow *flow_table_get_flow(uint32_t hash);
+
+void bind_nf_to_rxring(int nf_id, struct rte_ring *rx_ring);
 
 int flow_director_thread(struct port_info *args);
 

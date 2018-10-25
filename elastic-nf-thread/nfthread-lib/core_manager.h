@@ -13,12 +13,16 @@
  * Register client with socket:
  * @ param identifier: enable core manager to index its related profiling table
  * @ param priority: to allocate cores
- * @ param rx_rings identifier: enable core manager to get traffic rate of the Agent from vswitch
  * @ param nb_core: initial expected number of cores
  * return and set cpuset
  */
-//int registerAgent(int nb_cores);
+int registerAgent(uint16_t Agent_id, uint16_t priority, uint16_t nb_core){
 
+    //TODO: this should be decided by CM
+    uint16_t coremask = 0xf04;
+    return coremask;
+
+}
 /*
  * request one core from Core Manager
  *
@@ -47,13 +51,7 @@ int give_back_core(uint8_t core_id){
  *
  * @return Agent_id
  */
-int registerAgent(uint16_t Agent_id, uint16_t priority, uint16_t nb_core){
 
-    //TODO: this should be decided by CM
-    uint16_t coremask = 0xf04;
-    return coremask;
-
-}
 
 /*
  * check drop rate vector from shared state with switch
@@ -84,8 +82,8 @@ int updateDropVector(void){
 }
 
 //TODO: this should be a shared variable with vSwitch
-static uint64_t nf_drop_vector = 16;//binary code: 1000
-static uint64_t core_drop_vector = 0;
+static uint64_t nf_drop_vector = 0;//bitmap to record whether each thread drop or not
+static uint64_t core_drop_vector = 0;//bitmap to record whether each core drop or not
 
 int checkIsDrop(int thread_id){
     int i;

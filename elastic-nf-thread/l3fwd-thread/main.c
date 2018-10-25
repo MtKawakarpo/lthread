@@ -636,6 +636,9 @@ struct thread_rx_conf {
 	struct rte_ring *ring[RTE_MAX_LCORE];
 	struct lthread_condl *ready[RTE_MAX_LCORE];
 
+    // add by zzl
+    struct rte_ring* rx_ring;
+
 #if (APP_CPU_LOAD > 0)
 	int busy[MAX_CPU_COUNTER];
 #endif
@@ -2141,7 +2144,7 @@ lthread_tx(void *args)
 	struct lthread *lt;
 
 	unsigned lcore_id;
-    int lcore_tx_ring = -1;
+	int lcore_tx_ring = -1;
 	uint8_t portid;
 	struct thread_tx_conf *tx_conf;
 
@@ -2159,8 +2162,8 @@ lthread_tx(void *args)
 	 * Spawn tx readers (one per input ring)
 	 */
 
-    launch_batch_nfs(&lt, &lcore_tx_ring, 1, lthread_tx_per_ring, (void *)tx_conf);
-    tx_conf->conf.lcore_id = lcore_tx_ring;
+	launch_batch_nfs(&lt, &lcore_tx_ring, 1, lthread_tx_per_ring, (void *)tx_conf);
+	tx_conf->conf.lcore_id = lcore_tx_ring;
 
 	lcore_id = rte_lcore_id();
 
@@ -2209,6 +2212,8 @@ lthread_rx(void *dummy)
 	rx_conf = (struct thread_rx_conf *)dummy;
 	lthread_set_data((void *)rx_conf);
 
+    printf("Start lthread\n");
+
 	/*
 	 * Move this lthread to lcore
 	 * TODO: this responsibility should be transfer to Lthread
@@ -2224,13 +2229,13 @@ lthread_rx(void *dummy)
 
 	RTE_LOG(INFO, L3FWD, "Entering main Rx %d loop on lcore %u\n",rx_conf->conf.thread_id, rte_lcore_id());
 
-	for (i = 0; i < rx_conf->n_rx_queue; i++) {
-
-		portid = rx_conf->rx_queue_list[i].port_id;
-		queueid = rx_conf->rx_queue_list[i].queue_id;
-		RTE_LOG(INFO, L3FWD, " -- lcoreid=%u portid=%hhu rxqueueid=%hhu\n",
-				rte_lcore_id(), portid, queueid);
-	}
+//	for (i = 0; i < rx_conf->n_rx_queue; i++) {
+//
+//		portid = rx_conf->rx_queue_list[i].port_id;
+//		queueid = rx_conf->rx_queue_list[i].queue_id;
+//		RTE_LOG(INFO, L3FWD, " -- lcoreid=%u portid=%hhu rxqueueid=%hhu\n",
+//				rte_lcore_id(), portid, queueid);
+//	}
 
 	/*
 	 * Init all condition variables (one per rx thread)
@@ -2249,18 +2254,22 @@ lthread_rx(void *dummy)
 	while (1) {
 
 		/*
-		 * Read packet from RX queues
+		 * Read packet from its own queue
 		 */
-		for (i = 0; i < rx_conf->n_rx_queue; ++i) {
+//		for (i = 0; i < rx_conf->n_rx_queue; ++i) {  // 每个lthread只有一个rx_ring
 
-			portid = rx_conf->rx_queue_list[i].port_id;
-			queueid = rx_conf->rx_queue_list[i].queue_id;
-			core_id = rte_lcore_id();
+//			portid = rx_conf->rx_queue_list[i].port_id;
+//			queueid = rx_conf->rx_queue_list[i].queue_id;
+//			core_id = rte_lcore_id();
 
 			SET_CPU_BUSY(rx_conf, CPU_POLL);
 //			nb_rx = rte_eth_rx_burst(portid, queueid, pkts_burst, tempsize);
 
-			nb_rx = nf_eth_rx_burst(portid, queueid, pkts_burst, tempsize);
+//			nb_rx = nf_eth_rx_burst(portid, queueid, pkts_burst, tempsize);
+
+            printf("lthread recv pakcet\n");
+            nb_rx = rte_ring_sc_dequeue_bulk(rx_conf->rx_ring,
+                                             pkts_burst, MAX_PKT_BURST, NULL);
 
 			SET_CPU_IDLE(rx_conf, CPU_POLL);
 //			printf("rx %d recv packet\n", rx_conf->conf.thread_id);
@@ -2307,7 +2316,7 @@ lthread_rx(void *dummy)
 
 			}
 		}
-	}
+//	}
 }
 
 /*
@@ -2321,7 +2330,7 @@ lthread_spawner(__rte_unused void *arg) {
 	struct lthread *lt[MAX_THREAD];
 	int i;
 	int n_thread = 0;
-    int lcore_id = -1;
+	int lcore_id = -1;
 
 	printf("Entering lthread_spawner\n");
 
@@ -2333,10 +2342,15 @@ lthread_spawner(__rte_unused void *arg) {
 		n_thread++;
 	}
 //	launch_batch_nfs(lt, n_rx_thread, lthread_rx, (void *)&rx_thread[0], (void *)&rx_thread[1], (void *)&rx_thread[2]);
-    //FIXME: now just support 3 rx thread
-	launch_sfc(lt, &lcore_id, n_rx_thread, lthread_rx, (void *)&rx_thread[0],
-					 lthread_rx, (void *)&rx_thread[1], lthread_rx, (void *)&rx_thread[2]);
-    rx_thread[0].conf.lcore_id = rx_thread[1].conf.lcore_id = rx_thread[2].conf.lcore_id = lcore_id;
+	//FIXME: now just support 3 rx thread
+
+    printf("============  spwaaaa00000\n");
+
+    launch_sfc(lt, &lcore_id, n_rx_thread, lthread_rx, (void *)&rx_thread[0],
+			   lthread_rx, (void *)&rx_thread[1], lthread_rx, (void *)&rx_thread[2]);
+	rx_thread[0].conf.lcore_id = rx_thread[1].conf.lcore_id = rx_thread[2].conf.lcore_id = lcore_id;
+
+    printf("============  spwaaaa\n");
 
 	/*
 	 * Wait for all producers. Until some producers can be started on the same
@@ -2353,10 +2367,10 @@ lthread_spawner(__rte_unused void *arg) {
 		tx_thread[i].conf.thread_id = i;
 		n_thread++;
 	}
-    //FIXME: now just support 6 tx thread
+	//FIXME: now just support 6 tx thread
 	launch_batch_nfs(lt, &lcore_id, n_tx_thread, lthread_tx, (void *)&tx_thread[0], (void *)&tx_thread[1], (void *)&tx_thread[2],
 					 (void *)&tx_thread[3], (void *)&tx_thread[4], (void *)&tx_thread[5]);
-    tx_thread[0].conf.lcore_id = tx_thread[1].conf.lcore_id = tx_thread[2].conf.lcore_id = tx_thread[3].conf.lcore_id = lcore_id;
+	tx_thread[0].conf.lcore_id = tx_thread[1].conf.lcore_id = tx_thread[2].conf.lcore_id = tx_thread[3].conf.lcore_id = lcore_id;
 
 	/*
 	 * Wait for all threads finished
@@ -2386,7 +2400,7 @@ lthread_master_spawner(__rte_unused void *arg) {
 	RTE_PER_LCORE(lcore_conf) = &lcore_conf[lcore_id];
 	launch_batch_nfs(&lt, &lcore_id, 1, lthread_spawner, NULL);
 	//call scheduler
-    //TODO: call different scheduler on different cores
+	//TODO: call different scheduler on different cores
 	slave_scheduler_run();
 
 	return 0;
@@ -2406,6 +2420,7 @@ sched_spawner(__rte_unused void *arg) {
 	//TODO: launching nf should transfer to master scheduler to do
 	launch_batch_nfs(&lt, &lcore_id, 1, lthread_null, NULL);
 
+    printf("sche run\n");
 	slave_scheduler_run();
 
 	return 0;
@@ -2535,18 +2550,21 @@ pthread_rx(void *dummy)
 	while (1) {
 
 		/*
-		 * Read packet from RX queues
+		 * Read packet from RX queues, only one ring per thread
 		 */
-		for (i = 0; i < rx_conf->n_rx_queue; ++i) {
-			portid = rx_conf->rx_queue_list[i].port_id;
-			queueid = rx_conf->rx_queue_list[i].queue_id;
+//		for (i = 0; i < rx_conf->n_rx_queue; ++i) {
+//			portid = rx_conf->rx_queue_list[i].port_id;
+//			queueid = rx_conf->rx_queue_list[i].queue_id;
 
 			SET_CPU_BUSY(rx_conf, CPU_POLL);
 //			printf("pthread rx call rte_eth_rx from pot %d\n",  portid);
 
-			nb_rx = rte_eth_rx_burst(portid, queueid, pkts_burst,
-//				MAX_PKT_BURST);
-									 tempsize);
+//			nb_rx = rte_eth_rx_burst(portid, queueid, pkts_burst,
+////				MAX_PKT_BURST);
+//									 tempsize);
+            printf("lthread recv pakcet\n");
+            nb_rx = rte_ring_sc_dequeue_bulk(rx_conf->rx_ring,
+                                             pkts_burst, MAX_PKT_BURST, NULL);
 			SET_CPU_IDLE(rx_conf, CPU_POLL);
 //			clock_gettime(CLOCK_REALTIME, &start);
 
@@ -2601,7 +2619,7 @@ pthread_rx(void *dummy)
 			SET_CPU_IDLE(rx_conf, CPU_PROCESS);
 
 		}
-	}
+//	}
 }
 
 /*
@@ -2708,9 +2726,14 @@ init_rx_rings(void)
 	struct thread_tx_conf *tx_conf;
 	unsigned rx_thread_id, tx_thread_id;
 	char name[256];
-	struct rte_ring *ring = NULL;
 
-	for (tx_thread_id = 0; tx_thread_id < n_tx_thread; tx_thread_id++) {
+    char rx_ring_name[256];
+
+	struct rte_ring *ring = NULL;
+    struct rte_ring *rx_ring = NULL;
+
+
+    for (tx_thread_id = 0; tx_thread_id < n_tx_thread; tx_thread_id++) {
 
 		tx_conf = &tx_thread[tx_thread_id];
 
@@ -2744,6 +2767,19 @@ init_rx_rings(void)
 		tx_conf->ready = &rx_conf->ready[rx_conf->n_ring];
 
 		rx_conf->n_ring++;
+
+        snprintf(rx_ring_name, sizeof(rx_ring_name), "app_rxring_s%u_rx%u_tx%u",
+                 socket_io, rx_thread_id, tx_thread_id);
+
+        rx_ring = rte_ring_create(rx_ring_name, 1024 * 4, socket_io,
+                               RING_F_SP_ENQ | RING_F_SC_DEQ);
+
+        if (rx_ring == NULL) {
+            rte_panic("Cannot create rx ring to connect rx-thread %u "
+                          "with tx-thread %u\n", rx_thread_id, tx_thread_id);
+        }
+
+        rx_conf->rx_ring = rx_ring;
 	}
 	return 0;
 }
@@ -4005,17 +4041,20 @@ main(int argc, char **argv)
         rte_eal_remote_launch(flow_director_thread, (void*)port_info1, cur_core);
 
         // manager接口也应该这样做
-//        flow_table_add_entry(16820416, 0); // flow hash, nf_id
-//        flow_table_add_entry(33597632, 1);
+        flow_table_add_entry(16820416, 0); // flow hash (这里使用的是flow的源IP值), nf_id
+        bind_nf_to_rxring(0, rx_thread[0].rx_ring);
+        flow_table_add_entry(33597632, 1);
+        bind_nf_to_rxring(1, rx_thread[1].rx_ring);
+
 
         nb_lcores = nb_lcores - 1;
-//        nb_lcores = init_Agent(nb_lcores);
+        nb_lcores = init_Agent(nb_lcores);
         //TODO: call this in nf_lthread lib
 //		launch_scheduler(nb_lcores);
 //        init_cores(nb_lcores);
 //		lthread_num_schedulers_set(nb_lcores);
-//		rte_eal_mp_remote_launch(sched_spawner, NULL, SKIP_MASTER);
-//		lthread_master_spawner(NULL);
+		rte_eal_mp_remote_launch(sched_spawner, NULL, SKIP_MASTER);
+		lthread_master_spawner(NULL);
 
 	} else {
 		printf("Starting P-Threading Model\n");

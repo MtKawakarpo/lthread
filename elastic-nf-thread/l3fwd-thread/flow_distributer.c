@@ -103,6 +103,10 @@ struct flow *flow_table_get_flow(uint32_t hash) {
     return flow_table->entries[hash % MAX_TABLE_ENTRIES]->m_flow ;
 }
 
+void bind_nf_to_rxring(int nf_id, struct rte_ring *rx_ring) {
+    nf_rxring_mapping[nf_id] = rx_ring;
+}
+
 int flow_director_thread(struct port_info *args) {
     uint32_t i;
     int ret;
