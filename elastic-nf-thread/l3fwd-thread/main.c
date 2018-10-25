@@ -638,6 +638,8 @@ struct thread_rx_conf {
 
     // add by zzl
     struct rte_ring* rx_ring;
+    struct rte_ring* tx_ring;
+
 
 #if (APP_CPU_LOAD > 0)
 	int busy[MAX_CPU_COUNTER];
@@ -2267,8 +2269,8 @@ lthread_rx(void *dummy)
 
 //			nb_rx = nf_eth_rx_burst(portid, queueid, pkts_burst, tempsize);
 
-            printf("lthread recv pakcet\n");
-            nb_rx = rte_ring_sc_dequeue_bulk(rx_conf->rx_ring,
+//            printf("lthread recv pakcet\n");
+            nb_rx = nf_ring_dequeue_burst(rx_conf->rx_ring,
                                              pkts_burst, MAX_PKT_BURST, NULL);
 
 			SET_CPU_IDLE(rx_conf, CPU_POLL);
@@ -2295,26 +2297,38 @@ lthread_rx(void *dummy)
 //			printf("rx %d on core %d, process %d pkts\n", rx_conf->conf.thread_id, core_id, nb_rx);
 
 			if (nb_rx != 0) {
+//                if (rx_conf->conf.thread_id == 1)
+                printf("lthread %d recved %d packets\n", rx_conf->conf.thread_id, nb_rx);
 				//for test
 				cnt++;
 
-				worker_id = (worker_id + 1) % rx_conf->n_ring;
+//				worker_id = (worker_id + 1) % rx_conf->n_ring;
 				SET_CPU_BUSY(rx_conf, CPU_PROCESS);
+
+                for (i = 0; i < nb_rx; ++i) {
+                    rte_pktmbuf_free(pkts_burst[i]);
+                }
+
+                lthread_yield();
+
 
 //                if(cnt == 500 && rx_conf->conf.thread_id != 1) {
 //                if(cnt == 500) {
 //                    cnt = 0;
 //                    printf("rx %d on core %d, process %d pkts\n", rx_conf->conf.thread_id, core_id, nb_rx);
 //                }
-				ret = nf_ring_enqueue_burst(
-						rx_conf->ring[worker_id],
-						(void **) pkts_burst,
-						nb_rx, NULL);
+//				ret = nf_ring_enqueue_burst(
+//						rx_conf->ring[worker_id],
+//						(void **) pkts_burst,
+//						nb_rx, NULL);
 //				printf("finish\n");
 
 				SET_CPU_IDLE(rx_conf, CPU_PROCESS);
 
-			}
+			} else {
+                lthread_yield();
+
+            }
 		}
 //	}
 }
@@ -2368,9 +2382,9 @@ lthread_spawner(__rte_unused void *arg) {
 		n_thread++;
 	}
 	//FIXME: now just support 6 tx thread
-	launch_batch_nfs(lt, &lcore_id, n_tx_thread, lthread_tx, (void *)&tx_thread[0], (void *)&tx_thread[1], (void *)&tx_thread[2],
-					 (void *)&tx_thread[3], (void *)&tx_thread[4], (void *)&tx_thread[5]);
-	tx_thread[0].conf.lcore_id = tx_thread[1].conf.lcore_id = tx_thread[2].conf.lcore_id = tx_thread[3].conf.lcore_id = lcore_id;
+//	launch_batch_nfs(lt, &lcore_id, n_tx_thread, lthread_tx, (void *)&tx_thread[0], (void *)&tx_thread[1], (void *)&tx_thread[2],
+//					 (void *)&tx_thread[3], (void *)&tx_thread[4], (void *)&tx_thread[5]);
+//	tx_thread[0].conf.lcore_id = tx_thread[1].conf.lcore_id = tx_thread[2].conf.lcore_id = tx_thread[3].conf.lcore_id = lcore_id;
 
 	/*
 	 * Wait for all threads finished
@@ -2728,9 +2742,13 @@ init_rx_rings(void)
 	char name[256];
 
     char rx_ring_name[256];
+    char tx_ring_name[256];
 
-	struct rte_ring *ring = NULL;
+
+    struct rte_ring *ring = NULL;
     struct rte_ring *rx_ring = NULL;
+    struct rte_ring *tx_ring = NULL;
+
 
 
     for (tx_thread_id = 0; tx_thread_id < n_tx_thread; tx_thread_id++) {
@@ -2768,10 +2786,12 @@ init_rx_rings(void)
 
 		rx_conf->n_ring++;
 
+
+
+        // init a rx_ring
         snprintf(rx_ring_name, sizeof(rx_ring_name), "app_rxring_s%u_rx%u_tx%u",
                  socket_io, rx_thread_id, tx_thread_id);
-
-        rx_ring = rte_ring_create(rx_ring_name, 1024 * 4, socket_io,
+        rx_ring = rte_ring_create(rx_ring_name, 1024 * 2, socket_io,
                                RING_F_SP_ENQ | RING_F_SC_DEQ);
 
         if (rx_ring == NULL) {
@@ -2780,6 +2800,19 @@ init_rx_rings(void)
         }
 
         rx_conf->rx_ring = rx_ring;
+
+        // init a tx ring
+        snprintf(tx_ring_name, sizeof(tx_ring_name), "app_txring_s%u_rx%u_tx%u",
+                 socket_io, rx_thread_id, tx_thread_id);
+        tx_ring = rte_ring_create(tx_ring_name, 1024 * 2, socket_io,
+                                  RING_F_SP_ENQ | RING_F_SC_DEQ);
+
+        if (tx_ring == NULL) {
+            rte_panic("Cannot create tx ring to connect rx-thread %u "
+                          "with tx-thread %u\n", rx_thread_id, tx_thread_id);
+        }
+
+        rx_conf->tx_ring = tx_ring;
 	}
 	return 0;
 }
