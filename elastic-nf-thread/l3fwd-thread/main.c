@@ -2136,7 +2136,7 @@ lthread_tx(void *args)
 	struct lthread *lt;
 
 	unsigned lcore_id;
-    int lcore_tx_ring = -1;
+	int lcore_tx_ring = -1;
 	uint8_t portid;
 	struct thread_tx_conf *tx_conf;
 
@@ -2154,8 +2154,8 @@ lthread_tx(void *args)
 	 * Spawn tx readers (one per input ring)
 	 */
 
-    launch_batch_nfs(&lt, &lcore_tx_ring, 1, lthread_tx_per_ring, (void *)tx_conf);
-    tx_conf->conf.lcore_id = lcore_tx_ring;
+	launch_batch_nfs(&lt, &lcore_tx_ring, 1, lthread_tx_per_ring, (void *)tx_conf);
+	tx_conf->conf.lcore_id = lcore_tx_ring;
 
 	lcore_id = rte_lcore_id();
 
@@ -2316,7 +2316,7 @@ lthread_spawner(__rte_unused void *arg) {
 	struct lthread *lt[MAX_THREAD];
 	int i;
 	int n_thread = 0;
-    int lcore_id = -1;
+	int lcore_id = -1;
 
 	printf("Entering lthread_spawner\n");
 
@@ -2328,10 +2328,10 @@ lthread_spawner(__rte_unused void *arg) {
 		n_thread++;
 	}
 //	launch_batch_nfs(lt, n_rx_thread, lthread_rx, (void *)&rx_thread[0], (void *)&rx_thread[1], (void *)&rx_thread[2]);
-    //FIXME: now just support 3 rx thread
+	//FIXME: now just support 3 rx thread
 	launch_sfc(lt, &lcore_id, n_rx_thread, lthread_rx, (void *)&rx_thread[0],
-					 lthread_rx, (void *)&rx_thread[1], lthread_rx, (void *)&rx_thread[2]);
-    rx_thread[0].conf.lcore_id = rx_thread[1].conf.lcore_id = rx_thread[2].conf.lcore_id = lcore_id;
+			   lthread_rx, (void *)&rx_thread[1], lthread_rx, (void *)&rx_thread[2]);
+	rx_thread[0].conf.lcore_id = rx_thread[1].conf.lcore_id = rx_thread[2].conf.lcore_id = lcore_id;
 
 	/*
 	 * Wait for all producers. Until some producers can be started on the same
@@ -2348,10 +2348,10 @@ lthread_spawner(__rte_unused void *arg) {
 		tx_thread[i].conf.thread_id = i;
 		n_thread++;
 	}
-    //FIXME: now just support 6 tx thread
+	//FIXME: now just support 6 tx thread
 	launch_batch_nfs(lt, &lcore_id, n_tx_thread, lthread_tx, (void *)&tx_thread[0], (void *)&tx_thread[1], (void *)&tx_thread[2],
 					 (void *)&tx_thread[3], (void *)&tx_thread[4], (void *)&tx_thread[5]);
-    tx_thread[0].conf.lcore_id = tx_thread[1].conf.lcore_id = tx_thread[2].conf.lcore_id = tx_thread[3].conf.lcore_id = lcore_id;
+	tx_thread[0].conf.lcore_id = tx_thread[1].conf.lcore_id = tx_thread[2].conf.lcore_id = tx_thread[3].conf.lcore_id = lcore_id;
 
 	/*
 	 * Wait for all threads finished
@@ -2381,7 +2381,7 @@ lthread_master_spawner(__rte_unused void *arg) {
 	RTE_PER_LCORE(lcore_conf) = &lcore_conf[lcore_id];
 	launch_batch_nfs(&lt, &lcore_id, 1, lthread_spawner, NULL);
 	//call scheduler
-    //TODO: call different scheduler on different cores
+	//TODO: call different scheduler on different cores
 	slave_scheduler_run();
 
 	return 0;
@@ -3859,8 +3859,8 @@ main(int argc, char **argv)
 		printf("Starting L-Threading Model\n");
 
 
-        nb_lcores = init_Agent(nb_lcores);
-        //TODO: call this in nf_lthread lib
+		nb_lcores = init_Agent(nb_lcores);
+		//TODO: call this in nf_lthread lib
 //		launch_scheduler(nb_lcores);
 //        init_cores(nb_lcores);
 //		lthread_num_schedulers_set(nb_lcores);

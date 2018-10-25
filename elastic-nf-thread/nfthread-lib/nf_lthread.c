@@ -181,7 +181,6 @@ _lthread_init(struct lthread *lt,
 	/* set ctx func and args */
 	lt->fun = fun;
 	lt->arg = arg;
-	//FIXME: add for test
 	lt->thread_id = thread_id;
 	lt->exit_handler = exit_handler;
 
@@ -206,15 +205,6 @@ void _lthread_set_stack(struct lthread *lt, void *stack, size_t stack_size)
 	arch_set_stack(lt, _lthread_exec);
 }
 
-/*
- * initialize cores
-// */
-//void init_cores(int nb_lcores){
-//
-//	lthread_num_schedulers_set(nb_lcores);
-//
-//
-//}
 /*
  * launch a batch nfs of the same func with diferent params
  */
@@ -308,9 +298,6 @@ lthread_create(struct lthread **new_lt, int *lcore_id,
 
 	/* put it in the ready queue */
 	*new_lt = lt;
-//
-//	if (*lcore_id < 0)
-//		*lcore_id = rte_lcore_id();
 
 	DIAG_CREATE_EVENT(lt, LT_DIAG_LTHREAD_CREATE);
 
@@ -485,7 +472,6 @@ void lthread_yield(void)
 //        printf("lt %d get control\n", lt->thread_id);
 //        printf("lt %d switch to core %d\n", lt->thread_id, THIS_SCHED->lcore_id);
 //    }
-//	ctx_switch(&(THIS_SCHED)->ctx, &lt->ctx);
 }
 
 /*
