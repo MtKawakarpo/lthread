@@ -1,13 +1,5 @@
-
-// Created by zzl on 2018/10/25.
-//
-
 /*
- * TODO: add portmask parse and flownum parse
- * A multiple flow generator, support different pktsize in one flow
- * and different rx rate among multiple flows
- *
- *   Created by Haiping Wang on 2018/4/5.
+ *  Core Manager
  */
 #include <stdint.h>
 #include <signal.h>
@@ -45,11 +37,9 @@
 #define MAX_NF_NUM 1000
 #define MAX_AGENT_NUM 5
 #define NF_QUEUE_RING_SIZE 256
-#define NF_NAME_RX_RING "Agent_%u_NF_%u_rq"
-#define NF_NAME_TX_RING "Agent_%u_NF_%u_tq"
-#define RX_EXCLUSIVE_LCORE 9
-#define TX_EXCLUSIVE_LCORE 10
-static int Agent_id = 1001;
+#define MAX_THREAD 10
+#define NF_NAME_RX_RING "Agent_NF_%u_rq"
+#define NF_NAME_TX_RING "Agent_NF_%u_tq"
 
 static uint8_t port_id_list[NUM_PORTS] = {  0};
 
@@ -72,6 +62,7 @@ struct nf_info{
     struct rte_rinf *tx_q;
     int nf_id;
     uint16_t lcore_id;
+    int agent_id;
 };
 struct nf_thread_info{
     int nf_id;
@@ -89,11 +80,12 @@ uint16_t nb_agents = 1;
 uint16_t nb_lcores;
 int rx_thread_num = 1;
 int tx_thread_num = 1;
+int rx_exclusive_lcore = 5;
+int tx_exclusive_lcore = 6;
 struct tx_rx_thread_info *tx[4 * MAX_NUM_PORT];//infor of port using by thread
 struct tx_rx_thread_info *rx[4 * MAX_NUM_PORT];
 struct nf_thread_info *nf[ MAX_NF_NUM];
-rte_atomic16_t rx_counter;  /**< Number of spawned rx threads */
-rte_atomic16_t tx_counter;  /**< Number of spawned tx threads */
+
 uint64_t flow_ip_table[MAX_NF_NUM]={
         16820416, 33597632
 };
@@ -193,8 +185,6 @@ init_mbuf_pools(void) {
 
     const unsigned num_mbufs = NUM_MBUFS * NUM_PORTS;
 
-    /* don't pass single-producer/single-consumer flags to mbuf create as it
-     * seems faster to use a cache instead */
     printf("Creating mbuf pool '%s' [%u mbufs] ...\n",
            "MBUF_POOL", num_mbufs);
     pktmbuf_pool = rte_mempool_create("MBUF_POOL", num_mbufs,
@@ -207,31 +197,16 @@ init_mbuf_pools(void) {
 
 static inline const char * get_nf_rq_name(int i){
     static char buffer[sizeof(NF_NAME_RX_RING) + 10];
-    snprintf(buffer, sizeof(buffer)-1, NF_NAME_RX_RING, Agent_id, i);
+    snprintf(buffer, sizeof(buffer)-1, NF_NAME_RX_RING, i);
     return buffer;
 }
 char *get_nf_tq_name(int i){
     static char buffer[sizeof(NF_NAME_TX_RING)+10];
-    snprintf(buffer, sizeof(buffer)-1, NF_NAME_TX_RING,Agent_id, i);
+    snprintf(buffer, sizeof(buffer)-1, NF_NAME_TX_RING, i);
     return buffer;
 
 }
 
-
-struct ipv4_hdr*
-get_pkt_ipv4_hdr(struct rte_mbuf* pkt) {
-    struct ipv4_hdr* ipv4 = (struct ipv4_hdr*)(rte_pktmbuf_mtod(pkt, uint8_t*) + sizeof(struct ether_hdr));
-
-    /* In an IP packet, the first 4 bits determine the version.
-     * The next 4 bits are called the Internet Header Length, or IHL.
-     * DPDK's ipv4_hdr struct combines both the version and the IHL into one uint8_t.
-     */
-    uint8_t version = (ipv4->version_ihl >> 4) & 0b1111;
-    if (unlikely(version != 4)) {
-        return NULL;
-    }
-    return ipv4;
-}
 
 static void handle_signal(int sig)
 {
@@ -355,17 +330,7 @@ lthread_nf(void *dumy){
     for (; keep_running;) {
 
         nb_rx = nf_ring_dequeue_burst(rq, pkts, BURST_SIZE, NULL);
-//        for (i = 0; i < nb_rx; i++) {
-//
-//            for(cnt=0;cnt<1000;cnt+=3){
-//                cnt = cnt*2-1;
-//                if(cnt==2003)
-//                    printf("cnt\n");
-//            }
-//
-//        }
         if (unlikely(nb_rx > 0)) {
-//            printf("nf %d suc nbrx=%d\n",nf_id, nb_rx);
             //do somthing
             nb_tx = nf_ring_enqueue_burst(tq, pkts, nb_rx, NULL);
 //            printf("nf %d suc transfer %d pkts\n", nf_id, nb_tx);
@@ -385,22 +350,28 @@ lthread_null(__rte_unused void *args)
     printf("Starting scheduler on lcore %d.\n", lcore_id);
     lthread_exit(NULL);
 }
-#define MAX_THREAD 10
+
+/*
+ * main loop of core manager
+ */
 static int
 lthread_master_spawner(__rte_unused void *arg) {
     struct lthread *lt[MAX_THREAD];
-    int lcore_id = rte_lcore_id();
+//    int lcore_id = rte_lcore_id();
+    int lcore_id = 2;//for test
     long long thread_id;
 
-//    launch_batch_nfs(&lt[0], &lcore_id, 1, lthread_null, NULL);
     printf("entering core manager loop on core %d\n", lcore_id);
-
+    //TODO: dispatch nfs to scheds of each Agent
     launch_batch_nfs(lt, &lcore_id, nb_nfs, lthread_nf, (void *)nf[0],
                      (void *)nf[1]);
     printf("finish launch nfs\n");
     //call scheduler
-    //TODO: call different scheduler on different cores
-    slave_scheduler_run();
+    //TODO: CM
+
+    while (1){
+        rte_delay_ms(100);
+    }
 
     return 0;
 }
@@ -410,7 +381,6 @@ sched_spawner(__rte_unused void *arg) {
     struct lthread *lt;
     int lcore_id = rte_lcore_id();
 
-    //TODO: launching nf should transfer to master scheduler to do
     printf(">launching scheduler on core %d\n", lcore_id);
     launch_batch_nfs(&lt, &lcore_id, 1, lthread_null, NULL);
     slave_scheduler_run();
@@ -419,6 +389,7 @@ sched_spawner(__rte_unused void *arg) {
 }
 int give_cores_to_Agent(int agent_id){
     //core 0 is exclusive to core manager
+    //TODO: policy
     uint64_t coremaskcnt = 0x1E04;
     return coremaskcnt;
 }
@@ -431,7 +402,6 @@ int main(int argc, char *argv[]) {
     int socket_id = rte_socket_id();
     const char *rq_name;
     const char *tq_name;
-    int delay_time = 1000;
 
     ret = rte_eal_init(argc, argv);
     if (ret < 0)
@@ -486,6 +456,7 @@ int main(int argc, char *argv[]) {
     if (agents_info_data == NULL)
         rte_exit(EXIT_FAILURE, "Cannot allocate memory for agent = details\n");
 
+    /* init nf info */
     for(i = 0;i<nb_nfs;i++){
         rq_name = get_nf_rq_name(i);
         tq_name = get_nf_tq_name(i);
@@ -498,74 +469,69 @@ int main(int argc, char *argv[]) {
         nf[i] = calloc(1, sizeof(struct nf_thread_info));
         nf[i]->nf_id = i;
     }
+    /* init Agent info */
     uint64_t tmp_mask;
     int index = 0, lc=0;
     for(i = 0;i<nb_agents;i++){
-        index = 0;
-        lc=0;
+        index = 0; lc=0;
         agents_info_data[i].Agent_id = 1000+i;
         tmp_mask = agents_info_data[i].core_mask_count = give_cores_to_Agent(agents_info_data[i].Agent_id);
         //TODO: modify init_Agent to multi Agents version
-        agents_info_data[i].priority = init_Agent(agents_info_data[i].Agent_id, agents_info_data[i].core_mask_count);
+        agents_info_data[i].priority = i;
+        init_Agent(agents_info_data[i].Agent_id, agents_info_data[i].core_mask_count);
         printf(">>init Agent %d with priotity %d, %d core\n", agents_info_data[i].Agent_id, agents_info_data[i].priority,
                (agents_info_data[i].core_mask_count)&255);
         tmp_mask = (tmp_mask>>8);
         while(tmp_mask>0){
             if((tmp_mask&1UL)==1){
-
                 agents_info_data[i].core_list[index++] = lc;
                 printf(">>>>get core %d\n", agents_info_data[i].core_list[index-1]);
             }
             lc++;
             tmp_mask = tmp_mask>>1;
         }
-        nb_lcores += ((agents_info_data[i].core_mask_count)&255);
-        //end init agent
     }
 
     // 分配一个核给 flow distributor
     flow_table_init();
-    //TODO: modify lcore param
     struct port_info *port_info1 = calloc(1, sizeof(struct port_info));
     port_info1->port_id = 0;
     port_info1->queue_id = 0;
-
-    cur_lcore = rte_get_next_lcore(cur_lcore, 1, 1);
+    cur_lcore = rx_exclusive_lcore;
     if (rte_eal_remote_launch(flow_director_thread, (void *) port_info1, cur_lcore) == -EBUSY) {
         printf("Core %d is already busy, can't use for rx \n", cur_lcore);
         return -1;
     }
-    // manager接口也应该这样做
-
     for(i = 0;i<nb_nfs;i++){
         printf(">>>add flow entry %d-->nf %d\n", flow_ip_table[i], i);
         flow_table_add_entry(flow_ip_table[i], i); // flow hash (这里使用的是flow的源IP值), nf_id
         bind_nf_to_rxring(i, nfs_info_data[i].rx_q);
     }
 
-	//let us try lthread!
-	nb_lcores = init_Agent(1001, nb_lcores);
-	printf("Agent get %d core\n", nb_lcores);
-//	rte_eal_mp_remote_launch(sched_spawner, NULL, SKIP_MASTER);
-
-    for(i = 0;i<nb_lcores-1;i++){
-        cur_lcore = rte_get_next_lcore(cur_lcore, 1, 1);
-        if (rte_eal_remote_launch(sched_spawner, NULL, cur_lcore) == -EBUSY) {
-            printf("Core %d is already busy, can't use for sched\n", cur_lcore);
-            return -1;
+    /* launch scheduler of each Agent */
+    for(j = 0; j<nb_agents;j++){
+        int core_cnt = (agents_info_data[j].core_mask_count&255);
+        for(i = 0;i<core_cnt;i++){
+            cur_lcore = agents_info_data[j].core_list[i];
+            if (rte_eal_remote_launch(sched_spawner, NULL, cur_lcore) == -EBUSY) {
+                printf("Core %d is already busy, can't use for sched\n", cur_lcore);
+                return -1;
+            }
         }
     }
 
+    /* a core for EAL tx thread */
     for(i = 0;i<tx_thread_num;i++){
-        cur_lcore = rte_get_next_lcore(cur_lcore, 1, 1);
+        cur_lcore = tx_exclusive_lcore;
         if (rte_eal_remote_launch(lcore_tx_main, (void *) tx[i], cur_lcore) == -EBUSY) {
             printf("Core %d is already busy, can't use for tx \n", cur_lcore);
             return -1;
         }
     }
-	lthread_master_spawner(NULL);
+    /* main loop of CM */
+    lthread_master_spawner(NULL);
 
-	//pthread
+    //pthread
 //	for( i = 0;i< rx_thread_num ;i++){
 //		cur_lcore = rte_get_next_lcore(cur_lcore, 1, 1);
 //		printf("in launching rx %d port %d\n", i, rx[i]->port);
@@ -583,7 +549,7 @@ int main(int argc, char *argv[]) {
 //			return -1;
 //		}
 //	}
-	//
+    //
 //	for(i = 0;i<tx_thread_num;i++){
 //		cur_lcore = rte_get_next_lcore(cur_lcore, 1, 1);
 //		if (rte_eal_remote_launch(lcore_tx_main, (void *) tx[i], cur_lcore) == -EBUSY) {
@@ -592,12 +558,5 @@ int main(int argc, char *argv[]) {
 //		}
 //	}
 
-	int flow_id = 0;
-	for (; keep_running;){
-
-		rte_delay_ms(delay_time);
-//        rte_delay_ms(500);
-
-	}
-	return 0;
+    return 0;
 }
