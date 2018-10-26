@@ -593,7 +593,7 @@ int main(int argc, char *argv[]) {
     }
     // attach NF的tx ring 到flow director上
     nf_need_output(0, 0, nfs_info_data[0].tx_q);  // 参数为 nf_id, 要往哪个port 上 发数据, nf_id 对应的tx_ring
-    nf_need_output(0, 0, nfs_info_data[0].tx_q);
+    nf_need_output(1, 0, nfs_info_data[1].tx_q);
 
 
     /* launch scheduler of each Agent */
