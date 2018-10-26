@@ -21,13 +21,14 @@
 #include <nf_lthread_api.h>
 #include <thread_manager.h>
 #include "flow_distributer.h"
+#include "nfs/simple_forward.h"
+#include "nfs/nf_common.h"
 
 #define RX_RING_SIZE 512
 #define TX_RING_SIZE 512
 #define NUM_MBUFS 8192 * 4
 #define MBUF_SIZE (1600 + sizeof(struct rte_mbuf) + RTE_PKTMBUF_HEADROOM)
 #define MBUF_CACHE_SIZE 0
-#define BURST_SIZE 32
 #define NO_FLAGS 0
 #define RING_MAX 1  // 1个ring
 
@@ -46,7 +47,6 @@
 static uint8_t port_id_list[NUM_PORTS] = {  0};
 
 static struct rte_mempool *pktmbuf_pool;
-static uint8_t keep_running = 1;
 
 //now each rx/tx work for one flow
 struct tx_rx_thread_info
@@ -58,20 +58,6 @@ struct tx_rx_thread_info
     uint16_t fid;
 };
 
-struct nf_info{
-
-    lthread_func_t fun;
-    struct rte_ring *rx_q;
-    struct rte_rinf *tx_q;
-    int nf_id;
-    int agent_id;
-    int priority;
-    uint16_t lcore_id;
-
-};
-struct nf_thread_info{
-    int nf_id;
-};
 struct Agent_info{
     uint64_t core_mask_count;
     int priority;
@@ -79,10 +65,10 @@ struct Agent_info{
     int nfs_num;
     int core_list[MAX_LCORE_NUM];
 };
-struct nf_info *nfs_info_data;
+
 struct Agent_info *agents_info_data;
-uint16_t nb_nfs= 8;
-uint16_t nb_agents = 2;
+uint16_t nb_nfs= 2;
+uint16_t nb_agents = 1;
 uint16_t nb_lcores;
 int rx_thread_num = 1;
 int tx_thread_num = 1;
@@ -94,7 +80,7 @@ struct tx_rx_thread_info *rx[4 * MAX_NUM_PORT];
 struct nf_thread_info *nf[ MAX_NF_NUM];
 
 uint64_t flow_ip_table[MAX_NF_NUM]={
-        16820416, 33597632
+        16820416, 33597632, 67152064, 83929280, 100706496, 117483712, 50374848, 134260928
 };
 
 static const struct rte_eth_conf port_conf_default = {
@@ -214,141 +200,95 @@ char *get_nf_tq_name(int i){
 
 }
 
-
-static void handle_signal(int sig)
-{
-    if (sig == SIGINT || sig == SIGTERM)
-        keep_running = 0;
-}
-
 /*
  *  send pkts through one port for flows identified from start_fid to end_fid,
  *  tx rate is set by the parameter tx_delay[tx_id]
  */
-static int lcore_tx_main(void *arg) {
-    uint16_t i, j, sent, nb_rx, nb_tx;
-    uint16_t thread_id;
-    uint16_t queue_id, port_id;
-    int nf_id = 0;
-    struct tx_rx_thread_info *tx = (struct tx_rx_thread_info *)arg;
-    struct rte_mbuf *pkts[BURST_SIZE];
-    struct rte_ring *ring;
-
-    signal(SIGINT, handle_signal);
-    signal(SIGTERM, handle_signal);
-
-    thread_id = tx->thread_id;
-    port_id = tx->port;
-    queue_id = tx->queue;
-
-    printf("Core %d: Running TX thread %d,\n", rte_lcore_id(), tx->thread_id);
-
-    for(;keep_running;){
-        ring = nfs_info_data[nf_id].tx_q;
-        nb_rx = rte_ring_dequeue_burst(ring, pkts, BURST_SIZE*2, NULL);
-        queue_id = nf_id % RING_MAX;
-
-        if(unlikely(nb_rx>0)){
-
-            nb_tx = rte_eth_tx_burst(port_id, queue_id, pkts, nb_rx);
-            if (unlikely(nb_tx < nb_rx)) {
-                do {
-                    rte_pktmbuf_free(pkts[nb_tx]);
-                } while (++nb_tx < nb_rx);
-            }//end free if
-        }//end process if
-        nf_id++;
-        nf_id%=nb_nfs;
-    }
-
-    return 0;
-}
+//static int lcore_tx_main(void *arg) {
+//    uint16_t i, j, sent, nb_rx, nb_tx;
+//    uint16_t thread_id;
+//    uint16_t queue_id, port_id;
+//    int nf_id = 0;
+//    struct tx_rx_thread_info *tx = (struct tx_rx_thread_info *)arg;
+//    struct rte_mbuf *pkts[BURST_SIZE];
+//    struct rte_ring *ring;
+//
+//    signal(SIGINT, handle_signal);
+//    signal(SIGTERM, handle_signal);
+//
+//    thread_id = tx->thread_id;
+//    port_id = tx->port;
+//    queue_id = tx->queue;
+//
+//    printf("Core %d: Running TX thread %d,\n", rte_lcore_id(), tx->thread_id);
+//
+//    for(;keep_running;){
+//        ring = nfs_info_data[nf_id].tx_q;
+//        nb_rx = rte_ring_dequeue_burst(ring, pkts, BURST_SIZE*2, NULL);
+//        queue_id = nf_id % RING_MAX;
+//
+//        if(unlikely(nb_rx>0)){
+//
+//            nb_tx = rte_eth_tx_burst(port_id, queue_id, pkts, nb_rx);
+//            if (unlikely(nb_tx < nb_rx)) {
+//                do {
+//                    rte_pktmbuf_free(pkts[nb_tx]);
+//                } while (++nb_tx < nb_rx);
+//            }//end free if
+//        }//end process if
+//        nf_id++;
+//        nf_id%=nb_nfs;
+//    }
+//
+//    return 0;
+//}
 
 /*
  * receive pkts from all queues of one port and update the stats of ports and flows
  */
-static int lcore_rx_main(void *arg) {
-
-    uint16_t i, queue_id, receive, p_id, thread_id, nb_tx, cnt = 0;
-    struct ipv4_hdr *ipv4_hdr;
-    struct tx_rx_thread_info *rx_local = (struct tx_rx_thread_info *)arg;
-    struct rte_mbuf *pkts[BURST_SIZE];
-    struct timespec *payload, now = {0, 0};
-
-    signal(SIGINT, handle_signal);
-    signal(SIGTERM, handle_signal);
-
-    p_id = rx_local->port;
-    queue_id = rx_local->queue;
-    thread_id = rx_local->thread_id;
-
-    printf("Core %d: Running RX thread %d for port %d queue %d\n", rte_lcore_id(), thread_id, p_id, queue_id);
-
-    for (; keep_running;) {
-
-        receive = rte_eth_rx_burst(p_id, queue_id, pkts, BURST_SIZE);
-        queue_id++;
-        queue_id%=RING_MAX;
-
-        if (likely(receive > 0)) {
-//            if(thread_id == 1)
-//                printf("rx %d recv %d pkts on queue %d\n", thread_id, receive, queue_id);
-
-            //TODO: classifier pkts should follow some rule
-            nb_tx = rte_ring_enqueue_burst(nfs_info_data[queue_id%nb_nfs].rx_q, pkts, receive, NULL);
-            if (unlikely(nb_tx < receive)) {
-                uint32_t k;
-                for (k = nb_tx; k < receive; k++) {
-                    struct rte_mbuf *m = pkts[k];
-                    rte_pktmbuf_free(m);
-                }
-            }
-
-        }else {
-            continue;
-        }
-    }
-    return 0;
-}
-
-
-static int
-lthread_nf(void *dumy){
-
-    uint16_t i, nf_id, nb_rx, nb_tx, cnt;
-    struct ipv4_hdr *ipv4_hdr;
-    struct nf_thread_info *tmp = (struct nf_thread_info *)dumy;
-    struct nf_info *nf_info_local = &(nfs_info_data[tmp->nf_id]);
-    struct rte_mbuf *pkts[BURST_SIZE];
-    struct rte_ring *rq;
-    struct rte_ring *tq;
-
-    lthread_set_data((void *)nf_info_local);
-
-    signal(SIGINT, handle_signal);
-    signal(SIGTERM, handle_signal);
-
-    nf_id = nf_info_local->nf_id;
-    rq = nf_info_local->rx_q;
-    tq = nf_info_local->tx_q;
-
-    printf("Core %d: Running NF thread %d\n", rte_lcore_id(), nf_id);
-//	rte_delay_ms(1000);
-    for (; keep_running;) {
-
-        nb_rx = nf_ring_dequeue_burst(rq, pkts, BURST_SIZE, NULL);
-        if (unlikely(nb_rx > 0)) {
-            //do somthing
-            nb_tx = nf_ring_enqueue_burst(tq, pkts, nb_rx, NULL);
-//            printf("nf %d suc transfer %d pkts\n", nf_id, nb_tx);
-
-        }else {
-            continue;
-        }
-    }
-    return 0;
-
-}
+//static int lcore_rx_main(void *arg) {
+//
+//    uint16_t i, queue_id, receive, p_id, thread_id, nb_tx, cnt = 0;
+//    struct ipv4_hdr *ipv4_hdr;
+//    struct tx_rx_thread_info *rx_local = (struct tx_rx_thread_info *)arg;
+//    struct rte_mbuf *pkts[BURST_SIZE];
+//    struct timespec *payload, now = {0, 0};
+//
+//    signal(SIGINT, handle_signal);
+//    signal(SIGTERM, handle_signal);
+//
+//    p_id = rx_local->port;
+//    queue_id = rx_local->queue;
+//    thread_id = rx_local->thread_id;
+//
+//    printf("Core %d: Running RX thread %d for port %d queue %d\n", rte_lcore_id(), thread_id, p_id, queue_id);
+//
+//    for (; keep_running;) {
+//
+//        receive = rte_eth_rx_burst(p_id, queue_id, pkts, BURST_SIZE);
+//        queue_id++;
+//        queue_id%=RING_MAX;
+//
+//        if (likely(receive > 0)) {
+////            if(thread_id == 1)
+////                printf("rx %d recv %d pkts on queue %d\n", thread_id, receive, queue_id);
+//
+//            //TODO: classifier pkts should follow some rule
+//            nb_tx = rte_ring_enqueue_burst(nfs_info_data[queue_id%nb_nfs].rx_q, pkts, receive, NULL);
+//            if (unlikely(nb_tx < receive)) {
+//                uint32_t k;
+//                for (k = nb_tx; k < receive; k++) {
+//                    struct rte_mbuf *m = pkts[k];
+//                    rte_pktmbuf_free(m);
+//                }
+//            }
+//
+//        }else {
+//            continue;
+//        }
+//    }
+//    return 0;
+//}
 
 static void
 lthread_null(__rte_unused void *args)
@@ -461,7 +401,6 @@ lthread_master_spawner(__rte_unused void *arg) {
                 }//end process request
             }//end of scanning sched
         }//end of scanning agent
-    }//end of while
 
         // 在这里算nf丢包信息
         monitor_tick++;
@@ -470,22 +409,21 @@ lthread_master_spawner(__rte_unused void *arg) {
             monitor_tick = 0;
         }
 
-        if (monitor_tick % 25 == 0) {
-            // 示例: 获取nf的monitor信息
-            uint64_t processed_pps = get_processed_pps_with_nf_id(0);  // nf 0 的处理能力
-            uint64_t dropped_pps = get_dropped_pps_with_nf_id(0); // nf 0 每秒丢包数
-            double dropped_ratio = get_dropped_ratio_with_nf_id(0); // nf 0 这段时间的丢包率
-
-            printf(">>> NF %d <<< processing pps: %ld, dropping pps: %ld, dropping ratio: %lf\n", 0, processed_pps,
-                   dropped_pps, dropped_ratio);
-
-            processed_pps = get_processed_pps_with_nf_id(1);
-            dropped_pps = get_dropped_pps_with_nf_id(11);
-            dropped_ratio = get_dropped_ratio_with_nf_id(1);
-
-            printf(">>> NF %d <<< processing pps: %ld, dropping pps: %ld, dropping ratio: %lf\n", 1, processed_pps,
-                   dropped_pps, dropped_ratio);
-        }
+//        if (monitor_tick % 25 == 0) {
+//            // 示例: 获取nf的monitor信息
+//            uint64_t processed_pps = get_processed_pps_with_nf_id(0);  // nf 0 的处理能力
+//            uint64_t dropped_pps = get_dropped_pps_with_nf_id(0); // nf 0 每秒丢包数
+//            double dropped_ratio = get_dropped_ratio_with_nf_id(0); // nf 0 这段时间的丢包率
+//
+//            for(i =0;i<nb_nfs; i++){
+//                processed_pps = get_processed_pps_with_nf_id(i);
+//                dropped_pps = get_dropped_pps_with_nf_id(i);
+//                dropped_ratio = get_dropped_ratio_with_nf_id(i);
+//                printf(">>> NF %d <<< processing pps: %ld, drop pps: %ld, drop ratio: %lf\n", i, processed_pps,
+//                       dropped_pps, dropped_ratio);
+//            }
+//
+//        }
     }
 
 }
@@ -597,7 +535,7 @@ int main(int argc, char *argv[]) {
         }
         nfs_info_data[i].nf_id = i;
         //TODO: load nf function
-        nfs_info_data[i].fun = lthread_nf;
+        nfs_info_data[i].fun = lthread_forwarder;
         nfs_info_data[i].priority = i % nb_agents;
         nfs_info_data[i].agent_id = i % nb_agents;
         agents_info_data[nfs_info_data[i].priority].nfs_num +=1;

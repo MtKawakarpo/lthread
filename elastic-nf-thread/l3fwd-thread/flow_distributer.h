@@ -75,6 +75,7 @@ int flow_director_rx_thread(struct port_info *args);
 
 void nf_need_output(int nf_id, int out_port, struct rte_ring *nf_tx_ring);
 int flow_director_tx_thread(struct port_info *args);
+int flow_director_thread(struct port_info *args);
 
 // monitor统计所需数据以及接口
 extern struct nf_flow_stats *last_stats;
