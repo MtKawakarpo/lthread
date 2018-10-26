@@ -361,7 +361,7 @@ lthread_master_spawner(__rte_unused void *arg) {
     int lcore_id = 2;//for test
     long long thread_id;
 
-    printf("entering core manager loop on core %d\n", lcore_id);
+    printf("entering core manager loop on core %d\n", rte_lcore_id());
     //TODO: dispatch nfs to scheds of each Agent
     launch_batch_nfs(lt, &lcore_id, nb_nfs, lthread_nf, (void *)nf[0],
                      (void *)nf[1]);
