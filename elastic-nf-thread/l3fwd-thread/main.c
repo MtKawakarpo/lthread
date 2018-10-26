@@ -80,12 +80,13 @@ struct Agent_info{
 struct nf_info *nfs_info_data;
 struct Agent_info *agents_info_data;
 uint16_t nb_nfs= 8;
-uint16_t nb_agents = 1;
+uint16_t nb_agents = 2;
 uint16_t nb_lcores;
 int rx_thread_num = 1;
 int tx_thread_num = 1;
-int rx_exclusive_lcore = 5;
-int tx_exclusive_lcore = 6;
+//根据不同机器来制定, 0预留给core manager
+int rx_exclusive_lcore = 2;
+int tx_exclusive_lcore = 4;
 struct tx_rx_thread_info *tx[4 * MAX_NUM_PORT];//infor of port using by thread
 struct tx_rx_thread_info *rx[4 * MAX_NUM_PORT];
 struct nf_thread_info *nf[ MAX_NF_NUM];
@@ -354,7 +355,55 @@ lthread_null(__rte_unused void *args)
 //    printf("Starting scheduler on lcore %d.\n", lcore_id);
     lthread_exit(NULL);
 }
+/*
+ * notify thread manager to giveback the core of a Agent,
+ * thread manager will migrate nfs to another core of the Agent
+ * */
+int notify_to_give_back(int victim_lcore_id, int agent_id){
+    //TODO: 应该选择负载最小的core
+    int dst_core = agents_info_data[agent_id].core_list[0];
+    int index = 0, lc = 0;//lcore
 
+    printf("CM notify sched %d give back, migrate existing nfs to core %d\n", victim_lcore_id, dst_core);
+    set_give_back_flag(dst_core, victim_lcore_id);
+    while(read_give_back_flag(victim_lcore_id)>0){
+        rte_delay_ms(10);
+    }
+    uint8_t count = (agents_info_data[agent_id].core_mask_count&255);
+    uint64_t bitmap = agents_info_data[agent_id].core_mask_count>>8;
+    printf("update agent %d core list, old cnt=%d, mask=%d\n", agent_id, count, bitmap);
+    count -=1;
+    bitmap = (bitmap & ~(0x1<<victim_lcore_id));
+    printf("new mask and count = %d, %d\n", count, bitmap);//11
+    agents_info_data[agent_id].core_mask_count = ((bitmap<<8)|count);
+    while(bitmap>0){
+        if((bitmap&1UL)==1){
+            agents_info_data[agent_id].core_list[index++] = lc;
+            printf(">>>>hold core %d\n", agents_info_data[agent_id].core_list[index-1]);
+        }
+        lc++;
+        bitmap = bitmap>>1;
+    }
+    return 0;
+}
+/* before give a new core to a Agent, update its core params */
+void add_core_to_set(int agent_id, int lcore_id){
+
+    uint64_t mask = agents_info_data[agent_id].core_mask_count;
+    uint8_t count = ((mask&255) +1);
+    uint64_t bitmap = mask|(1<<8<<lcore_id);
+    agents_info_data[agent_id].core_mask_count = (bitmap|count);
+    agents_info_data[agent_id].core_list[count-1]=lcore_id;
+    printf("update agent %d core list, new cnt= %d, mask= %d\n", agent_id, count, bitmap>>8);
+
+    return;
+}
+int reply_to_Agent_request(int agent_id){
+    int ret = -1;//refuse
+    //TODO: select a idle core or do preemption
+    //if preemption, call notify_to_give_back() to take back the core
+    return ret;
+}
 /*
  * main loop of core manager
  */
@@ -384,7 +433,6 @@ lthread_master_spawner(__rte_unused void *arg) {
 
     printf("finish launch nfs\n");
 
-    //TODO: CM
     while (1){
         rte_delay_ms(100);
         for(i = 0;i<nb_agents;i++){
@@ -400,16 +448,18 @@ lthread_master_spawner(__rte_unused void *arg) {
                     set_new_core(lcore_id, -1);
                 }else if(add_flag == 1 && new_core_id == -1){
                     //新的请求，分配
-                    //TODO:
-                    new_core_id = 3;
+                    new_core_id = reply_to_Agent_request(i);
+                    if(new_core_id >0){
+                        add_core_to_set(i, new_core_id);
 //                    printf("CM find sched %d add_flag ==1, set new_core_id=%d\n", lcore_id, new_core_id);
-                    set_new_core(lcore_id, new_core_id);
+                        set_new_core(lcore_id, new_core_id);//notify thread manager
+                    }
                 }else if(add_flag == 1 && new_core_id >0){
-                    //已经分配过核，scheduler正在scale
-                }
-            }
-        }
-    }
+                    //已经分配过核，scheduler正在scale, do nothing
+                }//end process request
+            }//end of scanning sched
+        }//end of scanning agent
+    }//end of while
 
 }
 
@@ -424,11 +474,18 @@ sched_spawner(__rte_unused void *arg) {
 
     return 0;
 }
+/*
+ * at first give cores to each agent
+ */
+uint64_t coremask_set[MAX_AGENT_NUM]={
+        0x54003, 0x500002, 0x1000001, 0xc14000002
+};
 int give_cores_to_Agent(int agent_id){
     //core 0 is exclusive to core manager
-    //TODO: policy
-    uint64_t coremaskcnt = 0x1E04;
-    return coremaskcnt;
+    //TODO: policy: p0: 6,8,10,(0x540)  p1:12,14(0x5000), p2:16(0x10000)  p3:18,20(0xc140000)
+//    uint64_t coremaskcnt = 0x1E04;
+    printf("get agent %d, coremask=%d\n", agent_id, coremask_set[agent_id]);
+    return coremask_set[agent_id];
 }
 
 int main(int argc, char *argv[]) {
@@ -496,25 +553,11 @@ int main(int argc, char *argv[]) {
     /* init Agent info */
     uint64_t tmp_mask;
     int index = 0, lc=0;
+
     for(i = 0;i<nb_agents;i++){
-        index = 0; lc=0;
         agents_info_data[i].Agent_id = 1000+i;
         agents_info_data[i].nfs_num = 0;
-        tmp_mask = agents_info_data[i].core_mask_count = give_cores_to_Agent(agents_info_data[i].Agent_id);
         agents_info_data[i].priority = i;
-        init_Agent(agents_info_data[i].Agent_id, agents_info_data[i].core_mask_count);
-        printf(">>init Agent %d with priotity %d, %d core\n", agents_info_data[i].Agent_id, agents_info_data[i].priority,
-               (agents_info_data[i].core_mask_count)&255);
-        tmp_mask = (tmp_mask>>8);
-
-        while(tmp_mask>0){
-            if((tmp_mask&1UL)==1){
-                agents_info_data[i].core_list[index++] = lc;
-                printf(">>>>get core %d\n", agents_info_data[i].core_list[index-1]);
-            }
-            lc++;
-            tmp_mask = tmp_mask>>1;
-        }
     }
     /* init nf info */
     for(i = 0;i<nb_nfs;i++){
@@ -530,11 +573,27 @@ int main(int argc, char *argv[]) {
         nfs_info_data[i].fun = lthread_nf;
         nfs_info_data[i].priority = i % nb_agents;
         nfs_info_data[i].agent_id = i % nb_agents;
-
         agents_info_data[nfs_info_data[i].priority].nfs_num +=1;
         nf[i] = calloc(1, sizeof(struct nf_thread_info));
         nf[i]->nf_id = i;
 
+    }
+
+    for(i = 0;i<nb_agents ;i++){
+
+        index = 0; lc=0;
+        tmp_mask = agents_info_data[i].core_mask_count = give_cores_to_Agent(i);
+        printf(">>init Agent %d with priotity %d, %d core\n", agents_info_data[i].Agent_id, agents_info_data[i].priority,
+               (agents_info_data[i].core_mask_count)&255);
+        tmp_mask = (tmp_mask>>8);
+        while(tmp_mask>0){
+            if((tmp_mask&1UL)==1){
+                agents_info_data[i].core_list[index++] = lc;
+                printf(">>>>get core %d\n", agents_info_data[i].core_list[index-1]);
+            }
+            lc++;
+            tmp_mask = tmp_mask>>1;
+        }
     }
 
 
