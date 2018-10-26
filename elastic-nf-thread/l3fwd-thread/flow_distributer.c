@@ -149,7 +149,7 @@ int flow_director_thread(struct port_info *args) {
             continue;
         }
 
-        printf("port %d recved %d packets\n", port_id, nb_rx_pkts);
+//        printf("port %d recved %d packets\n", port_id, nb_rx_pkts);
 
         // Classfy flows
         for (i = 0; i < nb_rx_pkts; ++i) {
