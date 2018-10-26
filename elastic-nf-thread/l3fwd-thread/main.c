@@ -389,7 +389,7 @@ lthread_master_spawner(__rte_unused void *arg) {
     printf("finish launch nfs\n");
 
     //TODO: CM
-    while (1) {
+    while (keep_running) {
         rte_delay_ms(100);
         for (i = 0; i < nb_agents; i++) {
             int sched_cnt = (agents_info_data[i].core_mask_count & 255);
