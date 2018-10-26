@@ -118,6 +118,7 @@ RTE_DEFINE_PER_LCORE(int, counter) = 0;
 //#define NEW_CORE_ID RTE_LCORE(new_core_id)
 int add_flag[MAX_CORE_NUM] = {0};
 int new_core_id[MAX_CORE_NUM] = {-1};
+static rte_atomic16_t give_back_flag[MAX_CORE_NUM];
 
 
 struct lthread_sched *schedcore[LTHREAD_MAX_LCORES];
@@ -137,6 +138,9 @@ void lthread_sched_ctor(void)
 	for(i = 0;i<MAX_CORE_NUM;i++){
 		add_flag[i] = 0;
 		new_core_id[i] = -1;
+//		give_back_flag[i] = 0;
+		rte_atomic16_init(&give_back_flag[i]);
+		rte_atomic16_set(&give_back_flag[i], 0);
 	}
 	memset(schedcore, 0, sizeof(schedcore));
 	try_init_Agent = 0;
@@ -581,6 +585,52 @@ int set_new_core(int lcore_id, int dst_lcore_id){
 	new_core_id[lcore_id] = dst_lcore_id;
 	return 0;
 }
+int read_give_back_flag(int lcore_id){
+	return rte_atomic16_read(&give_back_flag[lcore_id]);
+}
+int set_give_back_flag(int value, int lcore_id){
+	rte_atomic16_set(&give_back_flag[lcore_id], value);
+	return 0;
+}
+
+void check_droping_msg(struct lthread *lt, int lcore_id, struct lthread **new_lt, int new_index){
+
+	int ret;
+
+	ret = checkIsDrop(lt->thread_id);
+
+	if (ret >= 0) {
+		if (lt->belong_to_sfc == 0) {
+			lt->should_migrate = ret;
+		} else {
+//		    printf("scale out sfc: %d->%d->%d\n", lt->thread_id, lt->next_hop_nf->thread_id,
+//							   lt->next_hop_nf->next_hop_nf->thread_id);
+			//FIXME: now we must fix len of chain to 3
+			//TODO: how to scale out ring?
+			launch_sfc(&new_lt[new_index], &ret, lt->chain_len, lt->fun, lt->arg,
+					   lt->next_hop_nf->fun, lt->next_hop_nf->arg,
+					   lt->next_hop_nf->next_hop_nf->fun, lt->next_hop_nf->next_hop_nf->arg);
+			new_index += lt->chain_len;
+		}
+	} else if (ret == -2) {
+//					printf("thread %d check dv, ret = %d\n", lt->thread_id, ret);
+		if (add_flag[lcore_id] == 0) {
+			add_flag[lcore_id] = 1;
+//						printf("thread %d set add_flag to 1, now new_core_id = %d\n", lt->thread_id, new_core_id[lcore_id]);
+		} else {
+//						printf("thread %d find add_flag is set, skip \n",lt->thread_id);
+			if (new_core_id[lcore_id] > 0) {
+//							printf("thread %d on core %d find new core %d is allocated \n",lt->thread_id,lcore_id, new_core_id[lcore_id]);
+				if(new_core_id[lcore_id] != lcore_id)
+					lt->should_migrate = new_core_id[lcore_id];
+//							printf("thread %d reset add_flag to 0\n", lt->thread_id);
+				add_flag[lcore_id] = 0;
+			}
+		}
+	} else {
+		//no drop
+	}
+}
 
 /*
  * Run the master thread scheduler
@@ -594,12 +644,14 @@ void slave_scheduler_run(void){
     int ret = -1;
 	int cnt = 0;
     int new_index = 0;
+	int check_dv_iteration = 1000;
 	int lcore_id = sched->lcore_id;
 
 	RTE_LOG(INFO, LTHREAD,
 			"starting scheduler on lcore %u phys core %u\n",
 			rte_lcore_id(),
 			rte_lcore_index(rte_lcore_id()));
+	int dst_lcore;
 
 	while (!_lthread_sched_isdone(sched)) {
 
@@ -609,49 +661,31 @@ void slave_scheduler_run(void){
 
 		lt = _lthread_queue_poll(sched->ready);
 		if (lt != NULL) {
-			if (cnt % 1000 == 0) {
-				ret = checkIsDrop(lt->thread_id);
-				cnt++;
-//				if(lt->thread_id == 4)
-//					printf("thread %d call check drop, ret %d\n", lt->thread_id, ret);
-				if (ret >= 0) {
-//					printf("thread %d check dv, ret = %d\n", lt->thread_id, ret);
-					if (lt->belong_to_sfc == 0) {
-						lt->should_migrate = ret;
-					} else {
-						//scale out sfc
-//						printf("scale out sfc: %d->%d->%d\n", lt->thread_id, lt->next_hop_nf->thread_id,
-//							   lt->next_hop_nf->next_hop_nf->thread_id);
-						//FIXME: now we must fix len of chain to 3
-						//TODO:how to scale out ring?
-						launch_sfc(&new_lt[new_index], &ret, lt->chain_len, lt->fun, lt->arg,
-								   lt->next_hop_nf->fun, lt->next_hop_nf->arg,
-								   lt->next_hop_nf->next_hop_nf->fun, lt->next_hop_nf->next_hop_nf->arg);
-						new_index += lt->chain_len;
+			//check whether to clean threads
+			if(cnt % check_dv_iteration == 0){
+				if( (dst_lcore = rte_atomic16_read(&give_back_flag[lcore_id]))> 0){
+					printf("thread %d on core %d recv give back msg\n", lt->thread_id, lcore_id);
+					do{
+						lt->should_migrate = dst_lcore;
+						_lthread_resume(lt);
+						lt = _lthread_queue_poll(sched->ready);
+					}while (lt != NULL);
+					lt = _lthread_queue_poll(sched->pready);
+					while(lt != NULL){
+						lt->should_migrate = dst_lcore;
+						_lthread_resume(lt);
+						lt = _lthread_queue_poll(sched->pready);
 					}
-				} else if (ret == -2) {
-					//TODO: call add core from CM
-//					printf("thread %d check dv, ret = %d\n", lt->thread_id, ret);
-					if (add_flag[lcore_id] == 0) {
-						add_flag[lcore_id] = 1;
-//						printf("thread %d set add_flag to 1, now new_core_id = %d\n", lt->thread_id, new_core_id[lcore_id]);
-					} else {
-//						printf("thread %d find add_flag is set, skip \n",lt->thread_id);
-						if (new_core_id[lcore_id] > 0) {
-//							printf("thread %d on core %d find new core %d is allocated \n",lt->thread_id,lcore_id, new_core_id[lcore_id]);
-							if(new_core_id[lcore_id] != lcore_id)
-								lt->should_migrate = new_core_id[lcore_id];
-//							printf("thread %d reset add_flag to 0\n", lt->thread_id);
-							add_flag[lcore_id] = 0;
-						}
-					}
-				} else {
-					//no drop
+					rte_atomic16_set(&give_back_flag[lcore_id], -1);
+					printf("sched on core %d finish migrating\n", lcore_id);
+					continue;
 				}
-			}//end drop check
+				check_droping_msg(lt, lcore_id, new_lt, new_index);
+			}
 			cnt%=1000000;
 			_lthread_resume(lt);
 		}
+
 		lt = _lthread_queue_poll(sched->pready);
 		if (lt != NULL) {
 			printf("core %d get a lt %d from pready queue\n", lcore_id, lt->thread_id);

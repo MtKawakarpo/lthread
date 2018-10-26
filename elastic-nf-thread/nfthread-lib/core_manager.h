@@ -82,8 +82,8 @@ int updateDropVector(void){
 }
 
 //TODO: this should be a shared variable with vSwitch
-static uint64_t nf_drop_vector = 16;//bitmap to record whether each thread drop or not
-static uint64_t core_drop_vector = 0x1f;//bitmap to record whether each core drop or not
+static uint64_t nf_drop_vector = 0;//bitmap to record whether each thread drop or not
+static uint64_t core_drop_vector = 0;//bitmap to record whether each core drop or not
 
 int checkIsDrop(int thread_id){
     int i;
@@ -104,9 +104,6 @@ int checkIsDrop(int thread_id){
     //for test
     static int cnt = 0;
 
-    //for test
-    if(thread_id == 4)
-        return -2;
     if(drop == 1){
         cnt++;
         if((((tmp_core_dv>>last_idle_core_0)&1UL)==0)){

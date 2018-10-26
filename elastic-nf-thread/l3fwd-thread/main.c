@@ -29,7 +29,7 @@
 #define MBUF_CACHE_SIZE 0
 #define BURST_SIZE 32
 #define NO_FLAGS 0
-#define RING_MAX 10
+#define RING_MAX 1  // 1个ring
 
 #define NUM_PORTS 1
 #define MAX_NUM_PORT 4
@@ -40,6 +40,8 @@
 #define MAX_THREAD 10
 #define NF_NAME_RX_RING "Agent_NF_%u_rq"
 #define NF_NAME_TX_RING "Agent_NF_%u_tq"
+
+#define MONITOR_PERIOD 30  // 3秒钟更新 一次 monitor的信息
 
 static uint8_t port_id_list[NUM_PORTS] = {  0};
 
@@ -415,7 +417,7 @@ lthread_master_spawner(__rte_unused void *arg) {
     int nfs_num_per_core;
     int i, sched, add_flag, new_core_id;
     int index_of_agent[MAX_AGENT_NUM];
-
+    int monitor_tick = 0;
     printf("entering core manager loop on core %d\n", rte_lcore_id());
     //TODO: dispatch nfs to scheds of each Agent
     for(i = 0;i<MAX_AGENT_NUM;i++){
@@ -460,6 +462,31 @@ lthread_master_spawner(__rte_unused void *arg) {
             }//end of scanning sched
         }//end of scanning agent
     }//end of while
+
+        // 在这里算nf丢包信息
+        monitor_tick++;
+        if (monitor_tick == MONITOR_PERIOD) {
+            monitor_update(3);
+            monitor_tick = 0;
+        }
+
+        if (monitor_tick % 25 == 0) {
+            // 示例: 获取nf的monitor信息
+            uint64_t processed_pps = get_processed_pps_with_nf_id(0);  // nf 0 的处理能力
+            uint64_t dropped_pps = get_dropped_pps_with_nf_id(0); // nf 0 每秒丢包数
+            double dropped_ratio = get_dropped_ratio_with_nf_id(0); // nf 0 这段时间的丢包率
+
+            printf(">>> NF %d <<< processing pps: %ld, dropping pps: %ld, dropping ratio: %lf\n", 0, processed_pps,
+                   dropped_pps, dropped_ratio);
+
+            processed_pps = get_processed_pps_with_nf_id(1);
+            dropped_pps = get_dropped_pps_with_nf_id(11);
+            dropped_ratio = get_dropped_ratio_with_nf_id(1);
+
+            printf(">>> NF %d <<< processing pps: %ld, dropping pps: %ld, dropping ratio: %lf\n", 1, processed_pps,
+                   dropped_pps, dropped_ratio);
+        }
+    }
 
 }
 
@@ -597,14 +624,14 @@ int main(int argc, char *argv[]) {
     }
 
 
-    // 分配一个核给 flow distributor
+    // 分配一个核给 flow distributor rx thread
     flow_table_init();
     struct port_info *port_info1 = calloc(1, sizeof(struct port_info));
     port_info1->port_id = 0;
     port_info1->queue_id = 0;
     cur_lcore = rx_exclusive_lcore;
-    if (rte_eal_remote_launch(flow_director_thread, (void *) port_info1, cur_lcore) == -EBUSY) {
-        printf("Core %d is already busy, can't use for rx \n", cur_lcore);
+    if (rte_eal_remote_launch(flow_director_rx_thread, (void *) port_info1, cur_lcore) == -EBUSY) {
+        printf("Core %d is already busy, can't use for RX of flow director \n", cur_lcore);
         return -1;
     }
     for(i = 0;i<nb_nfs;i++){
@@ -612,6 +639,20 @@ int main(int argc, char *argv[]) {
         flow_table_add_entry(flow_ip_table[i], i); // flow hash (这里使用的是flow的源IP值), nf_id
         bind_nf_to_rxring(i, nfs_info_data[i].rx_q);
     }
+
+    // 分配一个核给 flow distributor tx thread
+    struct port_info *port_info2 = calloc(1, sizeof(struct port_info));
+    port_info2->port_id = 0;
+    port_info2->queue_id = 0;
+    cur_lcore = tx_exclusive_lcore;
+    if (rte_eal_remote_launch(flow_director_tx_thread, (void *) port_info2, cur_lcore) == -EBUSY) {
+        printf("Core %d is already busy, can't use for TX of flow director \n", cur_lcore);
+        return -1;
+    }
+    // attach NF的tx ring 到flow director上
+    nf_need_output(0, 0, nfs_info_data[0].tx_q);  // 参数为 nf_id, 要往哪个port 上 发数据, nf_id 对应的tx_ring
+    nf_need_output(1, 0, nfs_info_data[1].tx_q);
+
 
     /* launch scheduler of each Agent */
     for(j = 0; j<nb_agents;j++){
@@ -626,13 +667,13 @@ int main(int argc, char *argv[]) {
     }
 
     /* a core for EAL tx thread */
-    for(i = 0;i<tx_thread_num;i++){
-        cur_lcore = tx_exclusive_lcore;
-        if (rte_eal_remote_launch(lcore_tx_main, (void *) tx[i], cur_lcore) == -EBUSY) {
-            printf("Core %d is already busy, can't use for tx \n", cur_lcore);
-            return -1;
-        }
-    }
+//    for(i = 0;i<tx_thread_num;i++){
+//        cur_lcore = tx_exclusive_lcore;
+//        if (rte_eal_remote_launch(lcore_tx_main, (void *) tx[i], cur_lcore) == -EBUSY) {
+//            printf("Core %d is already busy, can't use for tx \n", cur_lcore);
+//            return -1;
+//        }
+//    }
     /* main loop of CM */
     lthread_master_spawner(NULL);
 

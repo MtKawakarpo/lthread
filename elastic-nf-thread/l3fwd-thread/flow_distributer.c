@@ -18,7 +18,6 @@
 #include <rte_timer.h>
 #include <rte_cycles.h>
 
-
 #include <rte_ether.h>
 #include <rte_ethdev.h>
 #include <rte_ip.h>
@@ -29,11 +28,18 @@
 
 #define RTE_LOGTYPE_ELASTICTHREAD          RTE_LOGTYPE_USER1
 #define MAX_PKTS_BURST_RX 32
+#define MAX_PKTS_BURST_TX 32
 
 // 全局数据结构
 struct flow *flows;
 int flow_count;
 struct flow_table *flow_table;
+//struct rte_ring *nf_rxring_mapping[MAX_NF_NB];
+//struct nf_tx_conf *nf_txconf_mapping[MAX_NF_NB];
+int txconf_count;
+struct nf_flow_stats *last_stats;
+struct nf_flow_stats *cur_stats;
+int reset_stats;
 
 void flows_init(uint32_t nb_flows) {
     int i;
@@ -107,7 +113,7 @@ void bind_nf_to_rxring(int nf_id, struct rte_ring *rx_ring) {
     nf_rxring_mapping[nf_id] = rx_ring;
 }
 
-int flow_director_thread(struct port_info *args) {
+int flow_director_rx_thread(struct port_info *args) {
     uint32_t i;
     int ret;
     uint32_t nb_rx_pkts = 0;
@@ -134,6 +140,32 @@ int flow_director_thread(struct port_info *args) {
     for (i = 0; i < MAX_NF_NB; ++i)
         nf_rxring_mapping[i] = NULL;
 
+    // Rx上初始化一个monitor
+//    extern struct nf_flow_stats *last_stats;
+//    extern struct nf_flow_stats *cur_stats;
+    last_stats = rte_calloc("last_stats", MAX_NF_NB, sizeof(*last_stats), 0);
+    if (last_stats == NULL)
+        rte_exit(EXIT_FAILURE, "Cannot allocate memory for last_flow_stats\n");
+    cur_stats = rte_calloc("cur_stats", MAX_NF_NB, sizeof(*cur_stats), 0);
+    if (cur_stats == NULL)
+        rte_exit(EXIT_FAILURE, "Cannot allocate memory for cur_flow_stats\n");
+
+    for (i = 0; i < MAX_NF_NB; ++i) {
+        last_stats[i].total_pkts = 0;
+        last_stats[i].processed_pkts = 0;
+        last_stats[i].dropped_pkts = 0;
+    }
+    for (i = 0; i < MAX_NF_NB; ++i) {
+        cur_stats[i].total_pkts = 0;
+        cur_stats[i].processed_pkts = 0;
+        cur_stats[i].dropped_pkts = 0;
+    }
+
+    printf("RX monitor 初始化成功\n");
+
+
+    reset_stats = 0;
+
     RTE_LOG(INFO, ELASTICTHREAD, "%s() started on lcore %u and receiving port %u on queue %u\n", __func__,
             rte_lcore_id(), port_id, queue_id);
 //    if (ports_nb <= 0)
@@ -141,8 +173,15 @@ int flow_director_thread(struct port_info *args) {
 
     while (1) {
 
-        queue_id++;
-        queue_id%=10;
+//        queue_id++;
+//        queue_id%=10;
+        if (reset_stats) {
+            for (i = 0; i < MAX_NF_NB; ++i) {
+                cur_stats[i].processed_pkts = 0;
+                cur_stats[i].dropped_pkts = 0;
+            }
+            reset_stats = 0;
+        }
 
         nb_rx_pkts = rte_eth_rx_burst(port_id, queue_id,
                                       pkts, MAX_PKTS_BURST_RX);
@@ -187,6 +226,7 @@ int flow_director_thread(struct port_info *args) {
             if (nf_rx_ring == NULL) {
                 garbage_mbufs[garbage_count] = pkts[i];
                 garbage_count++;
+                cur_stats[nf_id].total_pkts++;
                 continue;
             }
 
@@ -197,7 +237,10 @@ int flow_director_thread(struct port_info *args) {
 //                printf("rx send pkts failed\n");
                 garbage_mbufs[garbage_count] = pkts[i];
                 garbage_count++;
+                cur_stats[nf_id].dropped_pkts++;
+                continue;
             }
+            cur_stats[nf_id].processed_pkts++;
         }
         if (garbage_count >= garbase_min) {
             pktmbuf_free_bulk(garbage_mbufs, garbage_count);
@@ -211,6 +254,92 @@ int flow_director_thread(struct port_info *args) {
 
     }
     RTE_LOG(DEBUG, ELASTICTHREAD, "Flow director exited\n");
+    return 0;
+}
+
+void reset_nf_stats() {
+    reset_stats = 1;
+}
+
+void monitor_update(int period) {
+    int i;
+//    printf("monitor update\n");
+
+    for (i = 0; i < MAX_NF_NB; ++i) {
+        cur_stats[i].processed_pps = cur_stats[i].processed_pkts / period;
+        cur_stats[i].dropped_pps = cur_stats[i].dropped_pkts / period;
+        if ((cur_stats[i].dropped_pkts + cur_stats[i].processed_pkts) == 0)
+            cur_stats[i].dropped_ratio = 0;
+        else
+            cur_stats[i].dropped_ratio = cur_stats[i].dropped_pkts / (cur_stats[i].dropped_pkts + cur_stats[i].processed_pkts);
+    }
+
+    reset_nf_stats();  // 重置信息
+//    printf("monitor update 成功\n");
+}
+
+uint64_t get_processed_pps_with_nf_id (int nf_id) {
+    return cur_stats[nf_id].processed_pps;
+}
+uint64_t get_dropped_pps_with_nf_id (int nf_id) {
+    return cur_stats[nf_id].dropped_pps;
+}
+double get_dropped_ratio_with_nf_id (int nf_id) {
+    return cur_stats[nf_id].dropped_ratio;
+}
+
+
+void nf_need_output(int nf_id, int out_port, struct rte_ring *nf_tx_ring) {
+    struct nf_tx_conf *add_conf = rte_calloc(NULL, 1, sizeof(struct nf_tx_conf *), 0);
+
+    add_conf->nf_id = nf_id;
+    add_conf->out_port = out_port;
+    add_conf->nf_tx_ring = nf_tx_ring;
+
+    nf_txconf_mapping[txconf_count] = add_conf;
+
+    txconf_count++;
+}
+
+
+int flow_director_tx_thread(struct port_info *args) {
+
+    uint32_t i, deq_nb;
+    int ret;
+    struct rte_mbuf *pkts[MAX_PKTS_BURST_RX];
+
+    uint8_t port_id = args->port_id;
+    uint16_t queue_id = args->queue_id;
+
+    txconf_count = 0;
+    for (i = 0; i < MAX_NF_NB; ++i)
+        nf_txconf_mapping[i] = NULL;
+
+    RTE_LOG(INFO, ELASTICTHREAD, "%s() started on lcore %u and tx packets on port %u with queue_id %u \n", __func__,
+            rte_lcore_id(), port_id, queue_id);
+
+    while (1) {
+
+        // 轮询所有的nf_txring
+        for (i = 0; i < txconf_count; ++i) {
+            if (nf_txconf_mapping[i] == NULL)
+                continue;
+            deq_nb = rte_ring_sc_dequeue_bulk(nf_txconf_mapping[i]->nf_tx_ring,
+                                              (void *)pkts, MAX_PKTS_BURST_TX, NULL);
+
+            if (unlikely(deq_nb == 0))
+                continue;
+
+            ret = rte_eth_tx_burst(nf_txconf_mapping[i]->out_port, queue_id, pkts, deq_nb);
+            if (unlikely(ret < deq_nb)) {
+                pktmbuf_free_bulk(&pkts[ret], deq_nb - ret);
+            }
+
+        }
+
+    }
+    RTE_LOG(DEBUG, ELASTICTHREAD, "Flow directer Tx exited\n");
+
     return 0;
 }
 

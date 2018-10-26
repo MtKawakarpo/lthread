@@ -265,6 +265,8 @@ int init_Agent(int agent_id, uint64_t core_mask_and_count);
 int check_add_flag(int lcore_id);
 int check_new_core_id(int lcore_id);
 int set_new_core(int lcore_id, int dst_lcore_id);
+int read_give_back_flag(int lcore_id);
+int set_give_back_flag(int value, int lcore_id);
 /**
   * Create an lthread
   *
