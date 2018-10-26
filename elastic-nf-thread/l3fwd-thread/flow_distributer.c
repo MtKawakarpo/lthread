@@ -141,6 +141,9 @@ int flow_director_thread(struct port_info *args) {
 
     while (1) {
 
+        queue_id++;
+        queue_id%=10;
+
         nb_rx_pkts = rte_eth_rx_burst(port_id, queue_id,
                                       pkts, MAX_PKTS_BURST_RX);
 

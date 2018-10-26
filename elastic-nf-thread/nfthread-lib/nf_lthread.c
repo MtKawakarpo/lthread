@@ -274,7 +274,7 @@ lthread_create(struct lthread **new_lt, int *lcore_id,
 	rte_atomic16_inc(&num_nf_threads);
 
 	if (THIS_SCHED == NULL) {
-		printf("> no scheduler in core %d, start one\n", *lcore_id);
+//		printf("> no scheduler in core %d, start one\n", *lcore_id);
 		THIS_SCHED = _lthread_sched_create(0);
 		if (THIS_SCHED == NULL) {
 			perror("Failed to create scheduler");
@@ -303,7 +303,8 @@ lthread_create(struct lthread **new_lt, int *lcore_id,
 
 	rte_wmb();
 	_ready_queue_insert(_lthread_sched_get(*lcore_id), lt);
-	printf(">create and insert lt %d into core %d\n", lt->thread_id, *lcore_id);
+//	if(*lcore_id==0)
+//		printf(">create and insert lt %d into core %d\n", lt->thread_id, *lcore_id);
 	return tid;
 }
 
@@ -462,7 +463,7 @@ void lthread_yield(void)
     }
     else{
         int dst_core = lt->should_migrate;
-        printf(">>>lt %d found it should migrate to core %d\n, dont insert itself to current scheduler ready\n", lt->thread_id ,dst_core);
+        printf(">>>lt %d found it should migrate to core %d\n\n", lt->thread_id ,dst_core);
         //FIXME:lt->should_migrate应该让scheduler还是线程自己置0?多个写者会不会有问题？
         lt->should_migrate = 0;
         lthread_set_affinity(lt, dst_core);

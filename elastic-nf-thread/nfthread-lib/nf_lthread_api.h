@@ -261,7 +261,10 @@ int launch_batch_nfs(struct lthread **new_lt, int *lcore_id, int batch_size, lth
 int launch_sfc(struct lthread **new_lt, int *lcore_id, int batch_size, ...);
 void launch_scheduler();
 //void init_cores(int nb_cores);
-int init_Agent(int nb_cores);
+int init_Agent(int agent_id, uint64_t core_mask_and_count);
+int check_add_flag(int lcore_id);
+int check_new_core_id(int lcore_id);
+int set_new_core(int lcore_id, int dst_lcore_id);
 /**
   * Create an lthread
   *

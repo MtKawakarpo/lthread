@@ -111,7 +111,14 @@ static rte_atomic16_t active_schedulers;
 /* one scheduler per lcore */
 RTE_DEFINE_PER_LCORE(struct lthread_sched *, this_sched) = NULL;
 RTE_DEFINE_PER_LCORE(int, counter) = 0;
+//RTE_DEFINE_PER_LCORE(int, add_flag) = 0;
+//RTE_DEFINE_PER_LCORE(int, new_core_id) = -1;
 #define COUNTER RTE_PER_LCORE(counter)
+//#define ADD_FLAG RTE_LCORE(add_flag)
+//#define NEW_CORE_ID RTE_LCORE(new_core_id)
+int add_flag[MAX_CORE_NUM] = {0};
+int new_core_id[MAX_CORE_NUM] = {-1};
+
 
 struct lthread_sched *schedcore[LTHREAD_MAX_LCORES];
 static try_init_Agent = 0;
@@ -126,6 +133,11 @@ uint64_t diag_mask;
 void lthread_sched_ctor(void) __attribute__ ((constructor));
 void lthread_sched_ctor(void)
 {
+	int i;
+	for(i = 0;i<MAX_CORE_NUM;i++){
+		add_flag[i] = 0;
+		new_core_id[i] = -1;
+	}
 	memset(schedcore, 0, sizeof(schedcore));
 	try_init_Agent = 0;
 	init_Agent_suc = 0;
@@ -269,27 +281,26 @@ _lthread_sched_alloc_resources(struct lthread_sched *new_sched)
 	return alloc_status;
 }
 
-int init_Agent(int nb_cores){
+int init_Agent(int agent_id, uint64_t core_mask_and_count){
 
 	uint64_t core_mask = 0;
 	int i = 0, index = 0;
-	int Agent_id = 1001;
+	int Agent_id = agent_id;
 	printf(">>>init Agent %d\n", Agent_id);
-	core_mask = registerAgent(Agent_id, 1, nb_cores);
-	core_mask_count = core_mask;//high 56 bits for bitmap, low 8bits for count
-	core_mask = core_mask>>8;
-	printf(">>>apply core cnt=%d, mask=%d\n",core_mask_count&255, core_mask);
-	while(core_mask>0){
-		if((core_mask&1UL)==1){
+//	core_mask = registerAgent(Agent_id, 1, core_mask_and_count&255);
+	core_mask_count = core_mask_and_count;//high 56 bits for bitmap, low 8bits for count
+	core_mask_and_count = core_mask_and_count>>8;
+//	printf(">>>apply core cnt=%d, mask=%d\n",core_mask_count&255, core_mask_and_count);
+	while(core_mask_and_count>0){
+		if((core_mask_and_count&1UL)==1){
 			core_list[index++]=i;
-			printf(">>>>get core %d\n", core_list[index-1]);
+//			printf(">>>>get core %d\n", core_list[index-1]);
 		}
 		i++;
-		core_mask = core_mask>>1;
-
+		core_mask_and_count = core_mask_and_count>>1;
 	}
 	rte_atomic16_set(&num_schedulers, (core_mask_count&255));
-	return (core_mask_count&255);
+	return 0;
 }
 /*
  * Create a scheduler on the current lcore
@@ -555,7 +566,21 @@ uint8_t update_dr_vector(void){
 	return ret;
 }
 
-
+/*
+ * set add core flag to notify CM
+ */
+int check_add_flag(int lcore_id){
+//	printf("...checking add flag of core %d = %d\n", lcore_id, add_flag[lcore_id]);
+	return add_flag[lcore_id];
+}
+int check_new_core_id(int lcore_id){
+//	printf("...checking new_core_id of core %d = %d\n", lcore_id, new_core_id[lcore_id]);
+	return new_core_id[lcore_id];
+}
+int set_new_core(int lcore_id, int dst_lcore_id){
+	new_core_id[lcore_id] = dst_lcore_id;
+	return 0;
+}
 
 /*
  * Run the master thread scheduler
@@ -566,13 +591,14 @@ void slave_scheduler_run(void){
 	struct lthread *lt = NULL;
     struct lthread *new_lt[127];
 
-    int ret;
+    int ret = -1;
 	int cnt = 0;
     int new_index = 0;
+	int lcore_id = sched->lcore_id;
 
 	RTE_LOG(INFO, LTHREAD,
-			"starting master scheduler %p on lcore %u phys core %u\n",
-			sched, rte_lcore_id(),
+			"starting scheduler on lcore %u phys core %u\n",
+			rte_lcore_id(),
 			rte_lcore_index(rte_lcore_id()));
 
 	while (!_lthread_sched_isdone(sched)) {
@@ -583,34 +609,52 @@ void slave_scheduler_run(void){
 
 		lt = _lthread_queue_poll(sched->ready);
 		if (lt != NULL) {
-//			if(cnt>100){
-				//check drop rate
+			if (cnt % 1000 == 0) {
 				ret = checkIsDrop(lt->thread_id);
-				//	printf("thread %d call check drop, ret %d\n", lt->thread_id, ret);
-				if(ret >=0){
-					printf("thread %d check dv, get ret = %d\n",lt->thread_id, ret);
-                    if(lt->belong_to_sfc == 0) {
-                        lt->should_migrate = ret;
-                    }
-                    else{
-                        //scale out sfc
-                        printf("scale out sfc: %d->%d->%d\n", lt->thread_id, lt->next_hop_nf->thread_id, lt->next_hop_nf->next_hop_nf->thread_id);
-                        //FIXME: now we must fix len of chain to 3
-                        //TODO:how to scale out ring?
-                        launch_sfc(&new_lt[new_index], &ret, lt->chain_len, lt->fun, lt->arg,
-                        lt->next_hop_nf->fun, lt->next_hop_nf->arg,
-                        lt->next_hop_nf->next_hop_nf->fun, lt->next_hop_nf->next_hop_nf->arg);
-                        new_index += lt->chain_len;
-                    }
-				}else if(ret == -2){
+				cnt++;
+//				if(lt->thread_id == 4)
+//					printf("thread %d call check drop, ret %d\n", lt->thread_id, ret);
+				if (ret >= 0) {
+//					printf("thread %d check dv, ret = %d\n", lt->thread_id, ret);
+					if (lt->belong_to_sfc == 0) {
+						lt->should_migrate = ret;
+					} else {
+						//scale out sfc
+//						printf("scale out sfc: %d->%d->%d\n", lt->thread_id, lt->next_hop_nf->thread_id,
+//							   lt->next_hop_nf->next_hop_nf->thread_id);
+						//FIXME: now we must fix len of chain to 3
+						//TODO:how to scale out ring?
+						launch_sfc(&new_lt[new_index], &ret, lt->chain_len, lt->fun, lt->arg,
+								   lt->next_hop_nf->fun, lt->next_hop_nf->arg,
+								   lt->next_hop_nf->next_hop_nf->fun, lt->next_hop_nf->next_hop_nf->arg);
+						new_index += lt->chain_len;
+					}
+				} else if (ret == -2) {
 					//TODO: call add core from CM
+//					printf("thread %d check dv, ret = %d\n", lt->thread_id, ret);
+					if (add_flag[lcore_id] == 0) {
+						add_flag[lcore_id] = 1;
+//						printf("thread %d set add_flag to 1, now new_core_id = %d\n", lt->thread_id, new_core_id[lcore_id]);
+					} else {
+//						printf("thread %d find add_flag is set, skip \n",lt->thread_id);
+						if (new_core_id[lcore_id] > 0) {
+//							printf("thread %d on core %d find new core %d is allocated \n",lt->thread_id,lcore_id, new_core_id[lcore_id]);
+							if(new_core_id[lcore_id] != lcore_id)
+								lt->should_migrate = new_core_id[lcore_id];
+//							printf("thread %d reset add_flag to 0\n", lt->thread_id);
+							add_flag[lcore_id] = 0;
+						}
+					}
+				} else {
+					//no drop
 				}
-
+			}//end drop check
+			cnt%=1000000;
 			_lthread_resume(lt);
 		}
 		lt = _lthread_queue_poll(sched->pready);
 		if (lt != NULL) {
-			printf("core %d get a lt %d from pready queue\n", sched->lcore_id, lt->thread_id);
+			printf("core %d get a lt %d from pready queue\n", lcore_id, lt->thread_id);
 			_lthread_resume(lt);
 		}
 	}
@@ -739,7 +783,7 @@ int lthread_set_affinity(struct lthread *lt, unsigned lcoreid)
 
 	if (likely(dest_sched != THIS_SCHED)) {
 		lt->sched = dest_sched;
-		printf("set lt %d to be scheduled on core %d\n", lt->thread_id, dest_sched->lcore_id);
+//		printf("set lt %d to be scheduled on core %d\n", lt->thread_id, dest_sched->lcore_id);
 		lt->pending_wr_queue = dest_sched->pready;
 		_affinitize();
 //		printf("finish _affinize\n");

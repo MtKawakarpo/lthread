@@ -82,24 +82,37 @@ int updateDropVector(void){
 }
 
 //TODO: this should be a shared variable with vSwitch
-static uint64_t nf_drop_vector = 0;//bitmap to record whether each thread drop or not
-static uint64_t core_drop_vector = 0;//bitmap to record whether each core drop or not
+static uint64_t nf_drop_vector = 16;//bitmap to record whether each thread drop or not
+static uint64_t core_drop_vector = 0x1f;//bitmap to record whether each core drop or not
 
 int checkIsDrop(int thread_id){
     int i;
-    int nb_cores = core_mask_count | 0xff;
+    int nb_cores = core_mask_count&255;
     static int last_idle_core_0 = 0;
-    last_idle_core_0 = core_list[1];
+    static int flag = 0;
     uint64_t tmp_dv = nf_drop_vector;
     uint64_t tmp_core_dv = core_drop_vector;
     uint64_t bit_base = 1;
 
+    if(flag == 0){
+        last_idle_core_0 = core_list[0];
+        flag = 1;
+    }
     /* note: now just support 127 cores and 127 threads per core ar most */
-    uint8_t drop = (tmp_dv>>thread_id)&1UL;
+    uint8_t drop = 0;
+    drop = ((tmp_dv>>thread_id)&1UL);
+    //for test
+    static int cnt = 0;
+
+    //for test
+    if(thread_id == 4)
+        return -2;
     if(drop == 1){
+        cnt++;
         if((((tmp_core_dv>>last_idle_core_0)&1UL)==0)){
             nf_drop_vector &=  (~(bit_base<<thread_id));
-            printf(">>>suggest thread %d to migrate to %d, reset dv to %d\n", thread_id, last_idle_core_0, nf_drop_vector);
+            printf(">>>try last core, suggest thread %d to migrate to %d, reset dv to %d\n",
+                   thread_id, last_idle_core_0, nf_drop_vector);
             return last_idle_core_0;
         }
 
@@ -107,7 +120,7 @@ int checkIsDrop(int thread_id){
             tmp_core_dv = core_drop_vector;
             if(((tmp_core_dv>>core_list[i])&1UL)==0){
                 last_idle_core_0 = core_list[i];
-                printf(">>suggest thread %d to migrate to %d", thread_id, core_list[i]);
+                printf(">>try core list, suggest thread %d to migrate to %d", thread_id, core_list[i]);
                 return core_list[i];//migrate to core core_list[i]
             }
         }

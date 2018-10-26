@@ -109,7 +109,9 @@ int nf_ring_enqueue(struct rte_ring *tx_ring, void *tx_pkt){
  */
 unsigned nf_ring_enqueue_burst(struct rte_ring *tx_ring, void *const *obj_table,
                                                           unsigned int 	burst_size, unsigned int *free_space){
+//    printf("call enqueue ring\n");
     uint16_t nb_tx = rte_ring_enqueue_burst(tx_ring, obj_table, burst_size, NULL);
+//    printf("ret = %d\n", nb_tx);
     if (unlikely(nb_tx < burst_size)) {
         uint32_t k;
 
