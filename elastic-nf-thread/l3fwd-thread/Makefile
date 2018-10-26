@@ -44,7 +44,7 @@ APP = l3fwd-thread
 # all source are stored in SRCS-y
 SRCS-y := flow_distributer.c main.c
 #SRCS-y := flow_distributer.c main-indeveloping.c
-include /home/ubuntu/whp/elastic-nf-thread/nfthread-lib/common.mk
+include $(NFTHREAD_LIB)/common.mk
 
 CFLAGS += -O3 -g $(USER_FLAGS) $(INCLUDES) $(WERROR_FLAGS)
 
