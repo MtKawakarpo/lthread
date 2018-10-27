@@ -1,7 +1,3 @@
-//
-// Created by zzl on 2018/10/26.
-//
-
 #include <stdint.h>
 #include <signal.h>
 #include <stdio.h>
@@ -10,7 +6,7 @@
 #include <rte_lcore.h>
 #include <rte_cycles.h>
 #include <rte_mbuf.h>
-#include "nf_common.h"
+#include "includes/nf_common.h"
 
 int
 lthread_forwarder(void *dumy){
@@ -24,6 +20,7 @@ lthread_forwarder(void *dumy){
 
     lthread_set_data((void *)nf_info_local);
 
+
     nf_id = nf_info_local->nf_id;
     rq = nf_info_local->rx_q;
     tq = nf_info_local->tx_q;
@@ -35,6 +32,7 @@ lthread_forwarder(void *dumy){
         if (unlikely(nb_rx > 0)) {
 //            printf("nf %d recv %d pkts\n", nf_id, nb_rx);
             //do somthing
+//            printf("action= %d\n", ipv4_firewall_hash_entry_array[0].action);
             nb_tx = nf_ring_enqueue_burst(tq, pkts, nb_rx, NULL);
 //            printf("nf %d suc transfer %d pkts\n", nf_id, nb_tx);
 

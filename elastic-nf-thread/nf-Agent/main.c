@@ -21,12 +21,15 @@
 #include <nf_lthread_api.h>
 #include <thread_manager.h>
 #include "flow_distributer.h"
-#include "nfs/simple_forward.h"
-#include "nfs/nf_common.h"
+#include "nfs/includes/nf_common.h"
+#include "nfs/includes/simple_forward.h"
+#include "nfs/includes/firewall.h"
+#include "nfs/includes/aes_encrypt.h"
+#include "nfs/includes/aes_decrypt.h"
 
 #define RX_RING_SIZE 512
 #define TX_RING_SIZE 512
-#define NUM_MBUFS 8192 * 4
+#define NUM_MBUFS 8192 * 128
 #define MBUF_SIZE (1600 + sizeof(struct rte_mbuf) + RTE_PKTMBUF_HEADROOM)
 #define MBUF_CACHE_SIZE 0
 #define NO_FLAGS 0
@@ -51,9 +54,11 @@ uint16_t nb_nfs= 10;//修改时必须更新nf_func_config, service_time_config, 
 uint16_t nb_agents = 4;//修改时必须更新coremask_set
 int rx_exclusive_lcore = 2;//根据不同机器来制定, 0预留给core manager
 int tx_exclusive_lcore = 4;
-lthread_func_t nf_fnuc_config[MAX_NF_NUM]={lthread_forwarder, lthread_forwarder, lthread_forwarder, lthread_forwarder,
+static const int dv_tolerance = 0;//NF丢包率超过这个阈值才进行扩展处理
+static const int mini_sertime_per_core = 1;//core的total service time低于这个阈值则被认定空闲，应该回收
+lthread_func_t nf_fnuc_config[MAX_NF_NUM]={lthread_aes_decryt, lthread_aes_encryt, lthread_firewall, lthread_forwarder,
                                            lthread_forwarder, lthread_forwarder, lthread_forwarder, lthread_forwarder,
-                                           lthread_forwarder, lthread_forwarder, lthread_forwarder, lthread_forwarder};
+                                           lthread_forwarder, lthread_forwarder, lthread_forwarder, lthread_forwarder};//NF函数，在nfs头文件里面定义
 int nf_service_time_config[MAX_NF_NUM] = {1, 1, 1, 1, 1, 1, 1, 1, 1, 1};
 int nf_priority_config[MAX_NF_NUM]={0, 0, 0, 0, 0, 1, 1, 1, 3, 3};
 int start_sfc_config_flag[MAX_NF_NUM]={0, 0, 0, 0, 0, 1, 1, 1, 0, 0};
@@ -90,6 +95,8 @@ static uint8_t port_id_list[NUM_PORTS] = {  0};
 static struct rte_mempool *pktmbuf_pool;
 static uint8_t keep_running = 1;
 uint16_t nb_lcores = 0;
+int last_idle_core[MAX_AGENT_NUM]={-1};
+
 static const struct rte_eth_conf port_conf_default = {
         .rxmode = {
                 .mq_mode = ETH_MQ_RX_RSS,
@@ -275,10 +282,6 @@ int notify_to_give_back(int victim_lcore_id, int agent_id){
     return dst_core;
 }
 
-int last_idle_core[MAX_AGENT_NUM]={-1};
-static const int dv_tolerance = 0;
-static const int mini_sertime_per_core = 1;
-
 int reply_to_Agent_request(int agent_id, int lcore_id){
 
     int i, core_cnt, j, dst_core, nf_id;
@@ -437,7 +440,7 @@ lthread_master_spawner(__rte_unused void *arg) {
                 if(dropped_pps > 0){
                     printf(">>> NF %d <<< processing pps: %9ld, drop pps: %9ld, drop ratio: %9lf\n", nf_id, processed_pps,
                            dropped_pps, dropped_ratio);
-//                    printf(">processing nf %d on core %d in Agent %d\n", nf_id,nfs_info_data[nf_id].lcore_id, nfs_info_data[nf_id].agent_id);
+                    printf(">processing nf %d on core %d in Agent %d\n", nf_id,nfs_info_data[nf_id].lcore_id, nfs_info_data[nf_id].agent_id);
                     //scaling
                     ret = reply_to_Agent_request((nfs_info_data[nf_id].agent_id), nfs_info_data[nf_id].lcore_id);
                     if(ret <0){
@@ -508,10 +511,12 @@ int main(int argc, char *argv[]) {
         if (ret != 0)
             rte_exit(EXIT_FAILURE, "Cannot init port %u\n",port_id_list[i]);
     }
+    printf(">>>try to allocate nf info data\n");
     nfs_info_data = rte_calloc("nfs info",
                                MAX_NF_NUM, sizeof(*nfs_info_data), 0);
     if (nfs_info_data == NULL)
         rte_exit(EXIT_FAILURE, "Cannot allocate memory for nf  details\n");
+    printf(">>>suc\n");
     agents_info_data = rte_calloc("agents info", MAX_AGENT_NUM, sizeof(*agents_info_data), 0);
     if (agents_info_data == NULL)
         rte_exit(EXIT_FAILURE, "Cannot allocate memory for agent = details\n");
@@ -571,6 +576,11 @@ int main(int argc, char *argv[]) {
         nfs_info_data[i].service_time = nf_service_time_config[i];
         nfs_info_data[i].priority = nf_priority_config[i];
         nfs_info_data[i].agent_id = nfs_info_data[i].priority;
+        nfs_info_data[i].state = rte_calloc("nf state", MAX_STATE_LEN, sizeof(*nfs_info_data[i].state), 0);
+        nfs_info_data[i].state->hash_map = rte_calloc("nf hash map", BIG_PRIME, sizeof(*nfs_info_data[i].state->hash_map), 0);
+//        nfs_info_data[i].state->key_schedule = rte_calloc("nf key schedule", AES_ENCRYPT_LEN, sizeof(WORD), 0);
+
+        printf(">>>suc to allocate nf state\n");
         if(start_sfc_config_flag[i] == 0){
             printf(">>>add flow entry %d-->nf %d\n", flow_ip_table[i], i);
             flow_table_add_entry(flow_ip_table[i], i); // flow hash (这里使用的是flow的源IP值), nf_id
