@@ -1,9 +1,5 @@
-//
-// Created by zzl on 2018/10/25.
-//
-
+//TODO: 兼容flow director和nfs
 /*
- * TODO: add portmask parse and flownum parse
  * A multiple flow generator, support different pktsize in one flow
  * and different rx rate among multiple flows
  *
