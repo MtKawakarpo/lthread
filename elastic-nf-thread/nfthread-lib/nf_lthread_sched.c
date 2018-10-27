@@ -1,65 +1,8 @@
-/*-
- *   BSD LICENSE
- *
- *   Copyright(c) 2015 Intel Corporation. All rights reserved.
- *   All rights reserved.
- *
- *   Redistribution and use in source and binary forms, with or without
- *   modification, are permitted provided that the following conditions
- *   are met:
- *
- *     * Redistributions of source code must retain the above copyright
- *       notice, this list of conditions and the following disclaimer.
- *     * Redistributions in binary form must reproduce the above copyright
- *       notice, this list of conditions and the following disclaimer in
- *       the documentation and/or other materials provided with the
- *       distribution.
- *     * Neither the name of Intel Corporation nor the names of its
- *       contributors may be used to endorse or promote products derived
- *       from this software without specific prior written permission.
- *
- *   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- *   "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- *   LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- *   A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
- *   OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- *   SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
- *   LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- *   DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- *   THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- *   (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- *   OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- */
-
 /*
- * Some portions of this software is derived from the
- * https://github.com/halayli/lthread which carrys the following license.
- *
- * Copyright (C) 2012, Hasan Alayli <halayli@gmail.com>
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions
- * are met:
- * 1. Redistributions of source code must retain the above copyright
- *    notice, this list of conditions and the following disclaimer.
- * 2. Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in the
- *    documentation and/or other materials provided with the distribution.
- *
- * THIS SOFTWARE IS PROVIDED BY AUTHOR AND CONTRIBUTORS ``AS IS'' AND
- * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
- * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
- * ARE DISCLAIMED.  IN NO EVENT SHALL AUTHOR OR CONTRIBUTORS BE LIABLE
- * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
- * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
- * OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
- * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
- * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
- * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
- * SUCH DAMAGE.
+ * thread manager:
+ *     1. thread scheduling
+ *     2. migrate threads according to msg from Core Manager
  */
-
-
 #define RTE_MEM 1
 
 #include <stdio.h>
@@ -87,7 +30,6 @@
 #include "nf_lthread_api.h"
 #include "nf_lthread_int.h"
 #include "nf_lthread_sched.h"
-#include "core_manager.h"
 #include "lthread_objcache.h"
 #include "lthread_timer.h"
 #include "lthread_mutex.h"
@@ -118,12 +60,12 @@ RTE_DEFINE_PER_LCORE(int, counter) = 0;
 //#define NEW_CORE_ID RTE_LCORE(new_core_id)
 int add_flag[MAX_CORE_NUM] = {0};
 int new_core_id[MAX_CORE_NUM] = {-1};
-static rte_atomic16_t give_back_flag[MAX_CORE_NUM];
+//static rte_atomic16_t give_back_flag[MAX_CORE_NUM];
+static rte_atomic16_t migrate_flag[MAX_CORE_NUM];
+static int migrate_to_core[MAX_CORE_NUM];
 
 
 struct lthread_sched *schedcore[LTHREAD_MAX_LCORES];
-static try_init_Agent = 0;
-static init_Agent_suc = 0;
 
 diag_callback diag_cb;
 
@@ -136,15 +78,14 @@ void lthread_sched_ctor(void)
 {
 	int i;
 	for(i = 0;i<MAX_CORE_NUM;i++){
-		add_flag[i] = 0;
-		new_core_id[i] = -1;
+//		add_flag[i] = 0;
+//		new_core_id[i] = -1;
 //		give_back_flag[i] = 0;
-		rte_atomic16_init(&give_back_flag[i]);
-		rte_atomic16_set(&give_back_flag[i], 0);
+		rte_atomic16_init(&migrate_flag[i]);
+		rte_atomic16_set(&migrate_flag[i], 0);
+		migrate_to_core[i] = -1;
 	}
 	memset(schedcore, 0, sizeof(schedcore));
-	try_init_Agent = 0;
-	init_Agent_suc = 0;
 	rte_atomic16_init(&num_schedulers);
 	rte_atomic16_set(&num_schedulers, 1);
 	rte_atomic16_init(&active_schedulers);
@@ -560,78 +501,20 @@ static inline void _lthread_schedulers_sync_stop(void)
 
 }
 
-/*
- * add for nfv
- * update drop rate vector of all nf threads
- */
-uint8_t update_dr_vector(void){
-	uint8_t ret = 0;
+int read_migrate_flag(int lcore_id){
+	return rte_atomic16_read(&migrate_flag[lcore_id]);
+}
+int set_migrate_flag(int value, int lcore_id){
 
-	return ret;
-}
-
-/*
- * set add core flag to notify CM
- */
-int check_add_flag(int lcore_id){
-//	printf("...checking add flag of core %d = %d\n", lcore_id, add_flag[lcore_id]);
-	return add_flag[lcore_id];
-}
-int check_new_core_id(int lcore_id){
-//	printf("...checking new_core_id of core %d = %d\n", lcore_id, new_core_id[lcore_id]);
-	return new_core_id[lcore_id];
-}
-int set_new_core(int lcore_id, int dst_lcore_id){
-	new_core_id[lcore_id] = dst_lcore_id;
+	rte_atomic16_set(&migrate_flag[lcore_id], value);
 	return 0;
 }
-int read_give_back_flag(int lcore_id){
-	return rte_atomic16_read(&give_back_flag[lcore_id]);
+int set_migrate_to_core(int value, int lcore_id){
+	migrate_to_core[lcore_id] = value;
 }
-int set_give_back_flag(int value, int lcore_id){
-	rte_atomic16_set(&give_back_flag[lcore_id], value);
-	return 0;
+int read_migrate_to_core(int lcore_id){
+	return migrate_to_core[lcore_id];
 }
-
-void check_droping_msg(struct lthread *lt, int lcore_id, struct lthread **new_lt, int new_index){
-
-	int ret;
-
-	ret = checkIsDrop(lt->thread_id);
-
-	if (ret >= 0) {
-		if (lt->belong_to_sfc == 0) {
-			lt->should_migrate = ret;
-		} else {
-//		    printf("scale out sfc: %d->%d->%d\n", lt->thread_id, lt->next_hop_nf->thread_id,
-//							   lt->next_hop_nf->next_hop_nf->thread_id);
-			//FIXME: now we must fix len of chain to 3
-			//TODO: how to scale out ring?
-			launch_sfc(&new_lt[new_index], &ret, lt->chain_len, lt->fun, lt->arg,
-					   lt->next_hop_nf->fun, lt->next_hop_nf->arg,
-					   lt->next_hop_nf->next_hop_nf->fun, lt->next_hop_nf->next_hop_nf->arg);
-			new_index += lt->chain_len;
-		}
-	} else if (ret == -2) {
-//					printf("thread %d check dv, ret = %d\n", lt->thread_id, ret);
-		if (add_flag[lcore_id] == 0) {
-			add_flag[lcore_id] = 1;
-//						printf("thread %d set add_flag to 1, now new_core_id = %d\n", lt->thread_id, new_core_id[lcore_id]);
-		} else {
-//						printf("thread %d find add_flag is set, skip \n",lt->thread_id);
-			if (new_core_id[lcore_id] > 0) {
-//							printf("thread %d on core %d find new core %d is allocated \n",lt->thread_id,lcore_id, new_core_id[lcore_id]);
-				if(new_core_id[lcore_id] != lcore_id)
-					lt->should_migrate = new_core_id[lcore_id];
-//							printf("thread %d reset add_flag to 0\n", lt->thread_id);
-				add_flag[lcore_id] = 0;
-			}
-		}
-	} else {
-		//no drop
-	}
-}
-
 /*
  * Run the master thread scheduler
  */
@@ -651,19 +534,20 @@ void slave_scheduler_run(void){
 			"starting scheduler on lcore %u phys core %u\n",
 			rte_lcore_id(),
 			rte_lcore_index(rte_lcore_id()));
-	int dst_lcore;
+	int dst_lcore, migrate;
 
 	while (!_lthread_sched_isdone(sched)) {
 
-		rte_timer_manage();
-		update_dr_vector();
+//		rte_timer_manage();
 		cnt++;
 
 		lt = _lthread_queue_poll(sched->ready);
 		if (lt != NULL) {
 			//check whether to clean threads
 			if(cnt % check_dv_iteration == 0){
-				if( (dst_lcore = rte_atomic16_read(&give_back_flag[lcore_id]))> 0){
+				migrate = rte_atomic16_read(&migrate_flag[lcore_id]);
+				if( migrate > 1){
+					dst_lcore = migrate_to_core[lcore_id];
 					printf("thread %d on core %d recv give back msg\n", lt->thread_id, lcore_id);
 					do{
 						lt->should_migrate = dst_lcore;
@@ -676,11 +560,16 @@ void slave_scheduler_run(void){
 						_lthread_resume(lt);
 						lt = _lthread_queue_poll(sched->pready);
 					}
-					rte_atomic16_set(&give_back_flag[lcore_id], -1);
-					printf("sched on core %d finish migrating\n", lcore_id);
+					rte_atomic16_set(&migrate_flag[lcore_id], 0);
+					printf("sched on core %d finish migrating all threads to core %d\n", lcore_id, dst_lcore);
 					continue;
+				}else if(migrate == 1){
+					printf("thread %d on core %d recv migrate msg, to core %d\n", lt->thread_id, lcore_id, dst_lcore);
+					dst_lcore = migrate_to_core[lcore_id];
+					lt->should_migrate = dst_lcore;
+					migrate_to_core[lcore_id] = lt->thread_id;//replay migrated lthread id
+					rte_atomic16_set(&migrate_flag[lcore_id], 0);
 				}
-				check_droping_msg(lt, lcore_id, new_lt, new_index);
 			}
 			cnt%=1000000;
 			_lthread_resume(lt);
@@ -706,80 +595,6 @@ void slave_scheduler_run(void){
 	fflush(stdout);
 
 }
-/*
- * Run the slave thread scheduler
- * This loop is the heart of the system
-// */
-//void master_scheduler_run(void)
-//{
-//
-//	struct lthread_sched *sched = THIS_SCHED;
-//	struct lthread *lt = NULL;
-//	uint16_t drop_rate = 0;
-//
-//	RTE_LOG(INFO, LTHREAD,
-//		"starting slave scheduler %p on lcore %u phys core %u\n",
-//		sched, rte_lcore_id(),
-//		rte_lcore_index(rte_lcore_id()));
-//
-//	/* if more than one, wait for all schedulers to start */
-//	_lthread_schedulers_sync_start();
-//
-//
-//	/*
-//	 * This is the main scheduling loop
-//	 * So long as there are tasks in existence we run this loop.
-//	 * We check for:-
-//	 *   expired timers,
-//	 *   the local ready queue,
-//	 *   and the peer ready queue,
-//	 *
-//	 * and resume lthreads ad infinitum.
-//	 */
-//	while (!_lthread_sched_isdone(sched)) {
-//
-//		rte_timer_manage();
-//
-//		lt = _lthread_queue_poll(sched->ready);
-//		if (lt != NULL) {
-////			if(sched->lcore_id == 1 && lt->thread_id == 30)
-////				printf("core %d get a lt %dfrom ready\n", sched->lcore_id, lt->thread_id);
-//
-//			// FIXME:for nfv test, modify later
-////			printf("core %d check for drop rate\n", sched->lcore_id);
-////			if(check_nf_droprate(sched->lcore_id, lt)>0){
-////				lt->should_migrate = 1;
-////				printf("scheduler mark lt %d to should migrate to 1\n", lt->thread_id);
-////			}
-////            if(lt->thread_id == 32 && sched->lcore_id == 1){
-////                printf("core %d get lt %d from ready\n", sched->lcore_id, lt->thread_id);
-////            }
-////			if(sched->lcore_id!=0)
-////				printf("core %d resum a lt %d\n", sched->lcore_id,lt->thread_id);
-//			_lthread_resume(lt);
-////			if(sched->lcore_id!=0)
-////				printf("core %d finish lt %d\n", sched->lcore_id, lt->thread_id);
-//
-//		}
-//		lt = _lthread_queue_poll(sched->pready);
-//		if (lt != NULL) {
-//			printf("core %d get a lt %d from pready queue\n", sched->lcore_id, lt->thread_id);
-//			_lthread_resume(lt);
-//		}
-//	}
-//
-//
-//	/* if more than one wait for all schedulers to stop */
-//	_lthread_schedulers_sync_stop();
-//
-//	(THIS_SCHED) = NULL;
-//
-//	RTE_LOG(INFO, LTHREAD,
-//		"stopping scheduler %p on lcore %u phys core %u\n",
-//		sched, rte_lcore_id(),
-//		rte_lcore_index(rte_lcore_id()));
-//	fflush(stdout);
-//}
 
 /*
  * Return the scheduler for this lcore
@@ -814,10 +629,10 @@ int lthread_set_affinity(struct lthread *lt, unsigned lcoreid)
 
 	if (unlikely(dest_sched == NULL))
 		return POSIX_ERRNO(EINVAL);
+	printf("set lt %d fromcpre %d to core %d\n", lt->thread_id, THIS_SCHED->lcore_id ,dest_sched->lcore_id);
 
 	if (likely(dest_sched != THIS_SCHED)) {
 		lt->sched = dest_sched;
-//		printf("set lt %d to be scheduled on core %d\n", lt->thread_id, dest_sched->lcore_id);
 		lt->pending_wr_queue = dest_sched->pready;
 		_affinitize();
 //		printf("finish _affinize\n");

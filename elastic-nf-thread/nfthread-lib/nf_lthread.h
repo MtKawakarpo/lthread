@@ -79,8 +79,7 @@ struct lthread_sched;
 #define MAX_NF_NUM 1000
 #define MAX_CORE_NUM 127
 static rte_atomic16_t num_nf_threads;
-//TODO:update to vswitch, get from CM
-static uint8_t core_nf_mapping[MAX_NF_NUM]={0};
+
 
 /* function to be called when a context function returns */
 typedef void (*lthread_exit_func) (struct lthread *);

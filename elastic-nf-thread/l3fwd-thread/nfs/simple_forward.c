@@ -12,7 +12,6 @@
 #include <rte_mbuf.h>
 #include "nf_common.h"
 
-
 int
 lthread_forwarder(void *dumy){
 
@@ -25,17 +24,13 @@ lthread_forwarder(void *dumy){
 
     lthread_set_data((void *)nf_info_local);
 
-    signal(SIGINT, handle_signal);
-    signal(SIGTERM, handle_signal);
-
     nf_id = nf_info_local->nf_id;
     rq = nf_info_local->rx_q;
     tq = nf_info_local->tx_q;
 
     printf("Core %d: Running NF thread %d\n", rte_lcore_id(), nf_id);
-//	rte_delay_ms(1000);
-    for (; keep_running;) {
-//    while(1){
+
+    while (1){
         nb_rx = nf_ring_dequeue_burst(rq, pkts, BURST_SIZE, NULL);
         if (unlikely(nb_rx > 0)) {
 //            printf("nf %d recv %d pkts\n", nf_id, nb_rx);

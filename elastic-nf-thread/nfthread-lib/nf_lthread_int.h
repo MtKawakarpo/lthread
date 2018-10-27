@@ -178,7 +178,6 @@ struct lthread {
 
 	uint64_t state;				/* current lthread state */
 
-	//add for nfv
 	uint8_t should_migrate;
 
 	struct lthread_sched *sched;		/* current scheduler */
@@ -187,7 +186,6 @@ struct lthread {
 	size_t last_stack_size;			/* last yield  stack_size */
 	lthread_func_t fun;			/* func ctx is running */
 	void *arg;				/* func args passed to func */
-	//FIXME:add
 	int thread_id;
 	uint8_t belong_to_sfc; /* distinguish nf:0 and sfc:1 */
 	struct lthread * next_hop_nf; /* record next hop nf thread_id: 0 for the last hop */

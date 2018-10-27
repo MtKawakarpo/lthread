@@ -259,14 +259,10 @@ void slaver_scheduler_run(void);
 ////add my Haiping Wang
 int launch_batch_nfs(struct lthread **new_lt, int *lcore_id, int batch_size, lthread_func_t fun, ...);
 int launch_sfc(struct lthread **new_lt, int *lcore_id, int batch_size, ...);
-void launch_scheduler();
-//void init_cores(int nb_cores);
-int init_Agent(int agent_id, uint64_t core_mask_and_count);
-int check_add_flag(int lcore_id);
-int check_new_core_id(int lcore_id);
-int set_new_core(int lcore_id, int dst_lcore_id);
-int read_give_back_flag(int lcore_id);
-int set_give_back_flag(int value, int lcore_id);
+int read_migrate_flag(int lcore_id);
+int set_migrate_flag(int value, int lcore_id);
+int set_migrate_to_core(int value, int lcore_id);
+int read_migrate_to_core(int lcore_id);
 /**
   * Create an lthread
   *

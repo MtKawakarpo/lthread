@@ -230,9 +230,11 @@ int launch_sfc(struct lthread **new_lt, int *lcore_id, int batch_size, ...){
 	lthread_func_t fun;
 	va_list arg;
 	va_start(arg,batch_size * 2);
+//	printf(">launch sfc with len = %d\n", batch_size);
 	for(i = 0;i<batch_size;i++){
 		fun = va_arg(arg, lthread_func_t);
 		thread_id = lthread_create(&new_lt[i], lcore_id, fun, va_arg(arg, void *));
+//		printf(">get thread id = %d\n", thread_id);
 		new_lt[i]->belong_to_sfc = 1;
 		new_lt[i]->chain_len = batch_size;
 		if(i>0) {
@@ -242,14 +244,14 @@ int launch_sfc(struct lthread **new_lt, int *lcore_id, int batch_size, ...){
 			new_lt[i]->next_hop_nf = NULL;
 		}
 	}
-	printf(">launch sfc: ");
-	for(i = 0;i<batch_size; i++){
-		if(i == 0)
-			printf("%d", new_lt[i]->thread_id);
-		else
-			printf("-->%d", new_lt[i-1]->next_hop_nf->thread_id);
-	}
-	printf("\n");
+//	printf(">launch sfc: ");
+//	for(i = 0;i<batch_size; i++){
+//		if(i == 0)
+//			printf("%d", new_lt[i]->thread_id);
+//		else
+//			printf("-->%d", new_lt[i-1]->next_hop_nf->thread_id);
+//	}
+//	printf("\n");
 	return 0;
 }
 
@@ -281,10 +283,6 @@ lthread_create(struct lthread **new_lt, int *lcore_id,
 			return POSIX_ERRNO(EAGAIN);
 		}
 	}
-
-	//set mapping, when migrate nf, reset it
-	core_nf_mapping[tid] = *lcore_id;
-
 	/* allocate a thread structure */
 	lt = _lthread_objcache_alloc((THIS_SCHED)->lthread_cache);
 	if (lt == NULL)
