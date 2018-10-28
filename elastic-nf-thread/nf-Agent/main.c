@@ -21,11 +21,17 @@
 #include <nf_lthread_api.h>
 #include <thread_manager.h>
 #include "flow_distributer.h"
-#include "nfs/includes/nf_common.h"
-#include "nfs/includes/simple_forward.h"
-#include "nfs/includes/firewall.h"
-#include "nfs/includes/aes_encrypt.h"
-#include "nfs/includes/aes_decrypt.h"
+//#include "nfs/includes/nf_common.h"
+//#include "nfs/includes/simple_forward.h"
+//#include "nfs/includes/firewall.h"
+//#include "nfs/includes/aes_encrypt.h"
+//#include "nfs/includes/aes_decrypt.h"
+
+#include "nf_common.h"
+#include "simple_forward.h"
+#include "firewall.h"
+#include "aes_encrypt.h"
+#include "aes_decrypt.h"
 
 #define RX_RING_SIZE 512
 #define TX_RING_SIZE 512
@@ -56,7 +62,7 @@ int rx_exclusive_lcore = 2;//根据不同机器来制定, 0预留给core manager
 int tx_exclusive_lcore = 4;
 static const int dv_tolerance = 0;//NF丢包率超过这个阈值才进行扩展处理
 static const int mini_sertime_per_core = 1;//core的total service time低于这个阈值则被认定空闲，应该回收
-lthread_func_t nf_fnuc_config[MAX_NF_NUM]={lthread_aes_encryt, lthread_aes_decryt, lthread_firewall, lthread_forwarder,
+lthread_func_t nf_fnuc_config[MAX_NF_NUM]={lthread_firewall, lthread_firewall, lthread_firewall, lthread_forwarder,
                                            lthread_forwarder, lthread_forwarder, lthread_forwarder, lthread_forwarder,
                                            lthread_forwarder, lthread_forwarder, lthread_forwarder, lthread_forwarder};//NF函数，在nfs头文件里面定义
 int nf_service_time_config[MAX_NF_NUM] = {1, 1, 1, 1, 1, 1, 1, 1, 1, 1};

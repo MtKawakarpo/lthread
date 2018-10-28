@@ -33,8 +33,12 @@ ifeq ($(RTE_SDK),)
 $(error "Please define RTE_SDK environment variable")
 endif
 
+PRO_PATH = $(ELASTIC_SDK)
+
 # Default target, can be overridden by command line or environment
 RTE_TARGET ?= x86_64-native-linuxapp-gcc
+
+NFS_HEADER += -I$(PRO_PATH)/nf-Agent/nfs/includes
 
 include $(RTE_SDK)/mk/rte.vars.mk
 
@@ -42,11 +46,13 @@ include $(RTE_SDK)/mk/rte.vars.mk
 APP = nfv-thread
 
 # all source are stored in SRCS-y
-SRCS-y := flow_distributer.c main.c  nfs/help.c nfs/aes.c nfs/lthread-nf/l_firewall.c nfs/lthread-nf/l_aes_encrypt.c nfs/lthread-nf/l_aes_decrypt.c nfs/lthread-nf/l_simple_forward.c nfs/pthread-nf/p_firewall.c nfs/pthread-nf/p_simple_forward.c nfs/pthread-nf/p_aes_encrypt.c nfs/pthread-nf/p_aes_decrypt.c
+SRCS-y := flow_distributer.c main.c  nfs/pkt_help.c nfs/aes.c nfs/lthread-nf/l_firewall.c nfs/lthread-nf/l_aes_encrypt.c nfs/lthread-nf/l_aes_decrypt.c nfs/lthread-nf/l_simple_forward.c nfs/pthread-nf/p_firewall.c nfs/pthread-nf/p_simple_forward.c nfs/pthread-nf/p_aes_encrypt.c nfs/pthread-nf/p_aes_decrypt.c
 #SRCS-y := flow_distributer.c main-indeveloping.c
 include $(NFTHREAD_LIB)/common.mk
 
 CFLAGS += -O3 -g $(USER_FLAGS) $(INCLUDES) $(WERROR_FLAGS)
+CFLAGS += $(NFS_HEADER)
+
 
 # workaround for a gcc bug with noreturn attribute
 # http://gcc.gnu.org/bugzilla/show_bug.cgi?id=12603

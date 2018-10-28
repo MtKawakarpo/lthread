@@ -1,3 +1,6 @@
+#ifndef FIREWALL_H
+#define FIREWALL_H
+
 #include <unistd.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -65,3 +68,5 @@ nf_firewall_handler(struct rte_mbuf *pkt[], uint16_t num, struct nf_statistics* 
 
 int lthread_firewall(void *dumy);
 int pthread_firewall(void *dumy);
+
+#endif
