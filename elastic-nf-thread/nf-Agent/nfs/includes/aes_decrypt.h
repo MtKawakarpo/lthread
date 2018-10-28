@@ -1,4 +1,4 @@
-#ifdef AES_DECRYPT_H
+#ifndef AES_DECRYPT_H
 #define AES_DECRYPT_H
 
 #include <unistd.h>
@@ -21,6 +21,7 @@
 
 #include "pkt_help.h"
 #include "aes.h"
+#include "nf_common.h"
 
 
 static BYTE de_key[1][32] = {

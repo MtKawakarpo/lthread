@@ -1,7 +1,6 @@
 #ifndef LTHREAD_NF_COMMON_H
 #define LTHREAD_NF_COMMON_H
 
-#endif //LTHREAD_NF_COMMON_H
 #define BURST_SIZE 32
 #define BIG_PRIME 10000019
 #define MAX_STATE_LEN 2000
@@ -54,3 +53,6 @@ struct nf_thread_info{
     int nf_id;
 };
 struct nf_info *nfs_info_data;
+
+#endif //LTHREAD_NF_COMMON_H
+

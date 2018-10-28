@@ -51,7 +51,7 @@ SRCS-y := flow_distributer.c main.c  nfs/pkt_help.c nfs/aes.c nfs/lthread-nf/l_f
 include $(NFTHREAD_LIB)/common.mk
 
 CFLAGS += -O3 -g $(USER_FLAGS) $(INCLUDES) $(WERROR_FLAGS)
-CFLAGS += $(NFS_HEADER)
+# CFLAGS += $(NFS_HEADER)
 
 
 # workaround for a gcc bug with noreturn attribute
