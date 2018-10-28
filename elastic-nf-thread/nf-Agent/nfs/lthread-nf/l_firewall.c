@@ -6,8 +6,8 @@
 #include <rte_lcore.h>
 #include <rte_cycles.h>
 #include <rte_mbuf.h>
-#include "./includes/nf_common.h"
-#include "./includes/firewall.h"
+#include "../includes/nf_common.h"
+#include "../includes/firewall.h"
 
 static inline void
 firewall_fill_ipv4_5tuple_key(struct ipv4_5tuple *key, void *ipv4_hdr) {
