@@ -1,28 +1,13 @@
-#include "includes/aes_decrypt.h"
-#include "includes/nf_common.h"
-
-
-/* AES decryption parameters */
-static BYTE key[1][32] = {
-        {0x60,0x3d,0xeb,0x10,0x15,0xca,0x71,0xbe,0x2b,0x73,0xae,0xf0,0x85,0x7d,0x77,0x81,0x1f,0x35,0x2c,0x07,0x3b,0x61,0x08,0xd7,0x2d,0x98,0x10,0xa3,0x09,0x14,0xdf,0xf4}
-};
-static BYTE iv[1][16] = {
-        {0x00,0x01,0x02,0x03,0x04,0x05,0x06,0x07,0x08,0x09,0x0a,0x0b,0x0c,0x0d,0x0e,0x0f}
-};
-
-/* register tenant state */
-uint32_t
-nf_aes_decrypt_register(void) {
-    return sizeof(struct nf_statistics);
-}
+#include "../includes/aes_decrypt.h"
+#include "../includes/nf_common.h"
 
 /* init tenant state */
-void
-nf_aes_decrypt_init(struct nf_statistics *stats) {
+void nf_aes_encrypt_init(struct nf_statistics *stats){
 
 
     /* Initialise decryption engine. Key should be configurable. */
-    aes_key_setup(key[0], stats->key_schedule, 256);
+    aes_key_setup(de_key[0], stats->key_schedule, 256);
+    return 0;
 }
 
 /* handle tenant packets */
@@ -49,7 +34,7 @@ nf_aes_decrypt_handler(struct rte_mbuf *pkt[], uint16_t num, struct nf_statistic
             /* Decrypt. */
             /* IV should change with every packet, but we don't have any
             * way to send it to the other side. */
-            aes_decrypt_ctr(pkt_data, plen, pkt_data, stats->key_schedule, 256, iv[0]);
+            aes_decrypt_ctr(pkt_data, plen, pkt_data, stats->key_schedule, 256, de_iv[0]);
             num_out ++;
         }
     }

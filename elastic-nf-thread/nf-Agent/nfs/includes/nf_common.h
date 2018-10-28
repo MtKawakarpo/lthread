@@ -19,7 +19,7 @@
 #include <getopt.h>
 #include <string.h>
 #include "aes.h"
-#include "help.h"
+#include "pkt_help.h"
 
 typedef void (*lthread_func_t) (void *);
 

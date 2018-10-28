@@ -24,6 +24,7 @@ typedef unsigned int WORD;             // 32-bit word, change to "long" for 16-b
 ///////////////////
 // AES
 ///////////////////
+/* AES decryption parameters */
 // Key setup must be done before any AES en/de-cryption functions can be used.
 void aes_key_setup(const BYTE key[],          // The key, must be 128, 192, or 256 bits
                    WORD w[],                  // Output key schedule to be used later

@@ -50,13 +50,13 @@
 #define SFC_CHAIN_LEN 3 //FIXME: 限定SFC长度为3
 #define MONITOR_PERIOD 30  // 3秒钟更新 一次 monitor的信息
 
-uint16_t nb_nfs= 10;//修改时必须更新nf_func_config, service_time_config, priority_config, start_sfc_config, flow_ip_table
+uint16_t nb_nfs = 10; //修改时必须更新nf_func_config, service_time_config, priority_config, start_sfc_config, flow_ip_table
 uint16_t nb_agents = 4;//修改时必须更新coremask_set
 int rx_exclusive_lcore = 2;//根据不同机器来制定, 0预留给core manager
 int tx_exclusive_lcore = 4;
 static const int dv_tolerance = 0;//NF丢包率超过这个阈值才进行扩展处理
 static const int mini_sertime_per_core = 1;//core的total service time低于这个阈值则被认定空闲，应该回收
-lthread_func_t nf_fnuc_config[MAX_NF_NUM]={lthread_aes_decryt, lthread_aes_encryt, lthread_firewall, lthread_forwarder,
+lthread_func_t nf_fnuc_config[MAX_NF_NUM]={lthread_aes_encryt, lthread_aes_decryt, lthread_firewall, lthread_forwarder,
                                            lthread_forwarder, lthread_forwarder, lthread_forwarder, lthread_forwarder,
                                            lthread_forwarder, lthread_forwarder, lthread_forwarder, lthread_forwarder};//NF函数，在nfs头文件里面定义
 int nf_service_time_config[MAX_NF_NUM] = {1, 1, 1, 1, 1, 1, 1, 1, 1, 1};

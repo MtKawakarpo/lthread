@@ -1,6 +1,3 @@
-#ifndef _HELP_H_
-#define _HELP_H_
-
 #include <inttypes.h>
 
 #include <rte_mbuf.h>
@@ -68,5 +65,3 @@ nf_pkt_print_ipv4(struct ipv4_hdr *hdr);
 
 void
 nf_pkt_print_ether(struct ether_hdr *hdr);
-
-#endif

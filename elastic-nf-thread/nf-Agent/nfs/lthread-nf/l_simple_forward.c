@@ -6,7 +6,8 @@
 #include <rte_lcore.h>
 #include <rte_cycles.h>
 #include <rte_mbuf.h>
-#include "includes/nf_common.h"
+#include "../includes/nf_common.h"
+#include "../includes/simple_forward.h"
 
 int
 lthread_forwarder(void *dumy){

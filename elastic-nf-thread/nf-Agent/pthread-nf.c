@@ -1,10 +1,4 @@
 //TODO: 兼容flow director和nfs
-/*
- * A multiple flow generator, support different pktsize in one flow
- * and different rx rate among multiple flows
- *
- *   Created by Haiping Wang on 2018/4/5.
- */
 #include <stdint.h>
 #include <signal.h>
 #include <stdio.h>
