@@ -191,8 +191,10 @@ _lthread_queue_insert_mp(struct lthread_queue
 	struct qnode *prev;
 	struct qnode *n = _qnode_alloc();
 
-	if (n == NULL)
+	if (n == NULL) {
+		printf(">>>cannot alloc qnode for queue inser\n");
 		return NULL;
+	}
 
 	/* set object in node */
 	n->data = data;

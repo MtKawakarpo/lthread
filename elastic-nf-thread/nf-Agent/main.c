@@ -56,26 +56,38 @@
 #define SFC_CHAIN_LEN 3 //FIXME: 限定SFC长度为3
 #define MONITOR_PERIOD 30  // 3秒钟更新 一次 monitor的信息
 
-uint16_t nb_nfs = 10; //修改时必须更新nf_func_config, service_time_config, priority_config, start_sfc_config, flow_ip_table
-uint16_t nb_agents = 4;//修改时必须更新coremask_set
-int rx_exclusive_lcore = 2;//根据不同机器来制定, 0预留给core manager
+uint16_t nb_nfs = 12; //修改时必须更新nf_func_config, service_time_config, priority_config, start_sfc_config, flow_ip_table
+uint16_t nb_agents = 1;//修改时必须更新coremask_set
+int rx_exclusive_lcore = 2;//
+// 根据不同机器来制定, 0预留给core manager
 int tx_exclusive_lcore = 4;
 static const int dv_tolerance = 0;//NF丢包率超过这个阈值才进行扩展处理
 static const int mini_sertime_per_core = 1;//core的total service time低于这个阈值则被认定空闲，应该回收
-lthread_func_t nf_fnuc_config[MAX_NF_NUM]={lthread_aes_encryt, lthread_aes_decryt, lthread_firewall, lthread_forwarder,
-                                           lthread_forwarder, lthread_forwarder, lthread_forwarder, lthread_forwarder,
-                                           lthread_forwarder, lthread_forwarder, lthread_forwarder, lthread_forwarder};//NF函数，在nfs头文件里面定义
-int nf_service_time_config[MAX_NF_NUM] = {1, 1, 1, 1, 1, 1, 1, 1, 1, 1};
-int nf_priority_config[MAX_NF_NUM]={0, 0, 0, 0, 0, 1, 1, 1, 3, 3};
-int start_sfc_config_flag[MAX_NF_NUM]={0, 0, 0, 0, 0, 1, 1, 1, 0, 0};
+lthread_func_t nf_fnuc_config[MAX_NF_NUM]={lthread_firewall, lthread_firewall, lthread_firewall, lthread_firewall,
+                                           lthread_firewall, lthread_firewall, lthread_firewall, lthread_firewall,
+                                           lthread_firewall, lthread_firewall, lthread_firewall, lthread_firewall,
+                                           lthread_firewall, lthread_firewall, lthread_firewall, lthread_firewall,
+                                           lthread_firewall, lthread_firewall, lthread_firewall, lthread_firewall,};//NF函数，在nfs头文件里面定义
+int nf_service_time_config[MAX_NF_NUM] = {1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+                                          1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+                                          1, 1, 1, 1, 1, 1, 1, 1, 1, 1};
+int nf_priority_config[MAX_NF_NUM]={0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                                    0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                                    0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+int start_sfc_config_flag[MAX_NF_NUM]={0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                                       0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                                       0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
 uint64_t flow_ip_table[MAX_NF_NUM]={
-        16820416, 33597632, 67152064, 83929280, 100706496, 117483712, 50374848, 0, 0, 134260928};
+        16820416, 33597632,50374848, 67152064, 83929280, 100706496, 117483712, 134260928,
+        151038144, 167815360, 184592576, 201369792, 218147008, 234924224, 251701440, 268478656,
+        285255872,302033088, 318810304, 335587520 };
 /* initial core policy:
  * CoreManager: core 0,
  * piority 0: core 6,8,10,(0x540)
- * p1:12,14(0x5000), p2:16(0x10000)  p3:18,20(0xc140000)*/
+ * p1:12,14(0x5000), p2:16(0x10000)  p3:18,20(0x140000)*/
 uint64_t coremask_set[MAX_AGENT_NUM]={
-        0x54003, 0x500002, 0x1000001, 0xc14000002};
+        0x54003, 0x500002, 0x1000001, 0x14000002};
+//        0x554005, 0x500002, 0x1000001, 0x14000002};
 
 struct Agent_info{
 
@@ -389,8 +401,6 @@ lthread_master_spawner(__rte_unused void *arg) {
     }
 
     for(i = 0;i<nb_nfs; i++){
-        rte_delay_ms(10);
-
         sfc_flag = start_sfc_config_flag[i];
         agent_id = nfs_info_data[i].agent_id;
         if(sfc_flag == 1){
@@ -407,6 +417,9 @@ lthread_master_spawner(__rte_unused void *arg) {
             }
             i-=1;
         }else{
+            //add for test, 测试多个NF共享一个core
+            if(agent_id == 0)
+                index_of_agent[agent_id] = 0;
             lcore_id = agents_info_data[agent_id].core_list[index_of_agent[agent_id]];
             cores_info_data[lcore_id].nf_total += 1;
             cores_info_data[lcore_id].service_time_total += nfs_info_data[i].service_time;
@@ -428,40 +441,52 @@ lthread_master_spawner(__rte_unused void *arg) {
     while (keep_running){
 
         rte_delay_ms(1000);
+//        continue;//don't scale
+//        printf("CM do scaling\n");
         //update需要更新: agent.core_mask, core_list,  core.nf_cnt, core service time
-        for(core_id = 0; core_id< MAX_LCORE_NUM; core_id++){
-            if(cores_info_data[core_id].nf_total == 0)
-                continue;
-            cores_info_data[core_id].drop_rate = 0;
-        }
-        for(nf_id = 0;nf_id<nb_nfs; nf_id++){
-            if(nfs_info_data[nf_id].belong_to_sfc == 1){
-                continue;//TODO: 默认不迁移、不扩展SFC
-            }else{
-                cnt++;
-                processed_pps = get_processed_pps_with_nf_id(nf_id);  // nf 0 的处理能力
-                dropped_pps = get_dropped_pps_with_nf_id(nf_id); // nf 0 每秒丢包数
-                dropped_ratio = get_dropped_ratio_with_nf_id(nf_id); // nf 0 这段时间的丢包率
+//        for(core_id = 0; core_id< MAX_LCORE_NUM; core_id++){
+//            if(cores_info_data[core_id].nf_total == 0)
+//                continue;
+//            cores_info_data[core_id].drop_rate = 0;
+//        }
+//        for(nf_id = 0;nf_id<nb_nfs; nf_id++){
+//            if(nfs_info_data[nf_id].belong_to_sfc == 1){
+//                continue;//TODO: 默认不迁移、不扩展SFC
+//            }else{
+//                cnt++;
+//                processed_pps = get_processed_pps_with_nf_id(nf_id);  // nf 0 的处理能力
+//                dropped_pps = get_dropped_pps_with_nf_id(nf_id); // nf 0 每秒丢包数
+//                dropped_ratio = get_dropped_ratio_with_nf_id(nf_id); // nf 0 这段时间的丢包率
+//
+//                if(dropped_pps > 0){
+//                    printf(">>> NF %d <<< processing pps: %9ld, drop pps: %9ld, drop ratio: %9lf\n", nf_id, processed_pps,
+//                           dropped_pps, dropped_ratio);
+//                    printf(">processing nf %d on core %d in Agent %d\n", nf_id,nfs_info_data[nf_id].lcore_id, nfs_info_data[nf_id].agent_id);
+//                    //scaling
+//                    ret = reply_to_Agent_request((nfs_info_data[nf_id].agent_id), nfs_info_data[nf_id].lcore_id);
+//                    if(ret <0){
+//                        printf("no available resouce to add\n");
+//                    }
+//                    cores_info_data[nfs_info_data[nf_id].lcore_id].drop_rate += dropped_pps;
+//                }
+//            }
+//        }
 
-                if(dropped_pps > 0){
-                    printf(">>> NF %d <<< processing pps: %9ld, drop pps: %9ld, drop ratio: %9lf\n", nf_id, processed_pps,
-                           dropped_pps, dropped_ratio);
-                    printf(">processing nf %d on core %d in Agent %d\n", nf_id,nfs_info_data[nf_id].lcore_id, nfs_info_data[nf_id].agent_id);
-                    //scaling
-                    ret = reply_to_Agent_request((nfs_info_data[nf_id].agent_id), nfs_info_data[nf_id].lcore_id);
-                    if(ret <0){
-                        printf("no available resouce to add\n");
-                    }
-                    cores_info_data[nfs_info_data[nf_id].lcore_id].drop_rate += dropped_pps;
-                }
-            }
-        }
-
-        // 在这里算nf丢包信息
+//         在这里算nf丢包信息
         monitor_tick++;
         if (monitor_tick == MONITOR_PERIOD) {
             monitor_update(3);
             monitor_tick = 0;
+        }
+        for(nf_id = 0;nf_id<nb_nfs; nf_id++){
+
+//            cnt++;
+            processed_pps = get_processed_pps_with_nf_id(nf_id);  // nf 0 的处理能力
+            dropped_pps = get_dropped_pps_with_nf_id(nf_id); // nf 0 每秒丢包数
+            dropped_ratio = get_dropped_ratio_with_nf_id(nf_id); // nf 0 这段时间的丢包率
+            printf(">>> NF %d <<< processing pps: %9ld, drop pps: %9ld, drop ratio: %9lf\n", nf_id, processed_pps,
+                           dropped_pps, dropped_ratio);
+//                }
         }
     }
 
@@ -629,6 +654,7 @@ int main(int argc, char *argv[]) {
         printf(">>init Agent %d with priotity %d, %d core\n", agents_info_data[i].Agent_id, agents_info_data[i].priority,
                (agents_info_data[i].core_cnt));
         tmp_mask = (tmp_mask>>8);
+
         while(tmp_mask>0){
             if((tmp_mask&1UL)==1){
                 agents_info_data[i].core_list[index++] = lc;
@@ -636,7 +662,7 @@ int main(int argc, char *argv[]) {
                 printf(">>>>get core %d\n", agents_info_data[i].core_list[index-1]);
             }
             lc++;
-            tmp_mask = tmp_mask>>1;
+            tmp_mask = (tmp_mask>>1);
         }
     }
 

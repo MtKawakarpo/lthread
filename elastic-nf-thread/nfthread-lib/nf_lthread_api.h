@@ -179,7 +179,7 @@ typedef void (*lthread_func_t) (void *);
  * @see _mutex_alloc()
  *
  */
-#define LTHREAD_PREALLOC 100
+#define LTHREAD_PREALLOC 1000
 
 /**
  * Set the number of schedulers in the system.

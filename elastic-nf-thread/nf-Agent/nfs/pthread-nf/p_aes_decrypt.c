@@ -38,9 +38,8 @@ pthread_aes_decryt(void *dumy){
                     rte_pktmbuf_free(m);
                 }
             }
-        }else {
-            continue;
         }
+        sched_yield();
     }
     return 0;
 

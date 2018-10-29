@@ -30,6 +30,22 @@ pthread_forwarder(void *dumy){
         if (unlikely(nb_rx > 0)) {
 
 //            do somthing
+//            int g, h;
+//            long long result = 0;
+//            long long multiply = 1;
+//            for(g = 0;g<40;g++){
+//                multiply += 2;
+//                if(multiply > 1024 *64)
+//                    multiply = 1;
+//                for(h = 0;h<multiply;h++){
+//                    result += h;
+//                    if(result < 0)
+//                        result = 0;
+//                }
+//
+//            }
+//            if(multiply == 1024 && result == 40960000)
+//                printf("result=%d \n", result);
 //            printf("forwarder %d suc transfer %d pkts\n", nf_id, nb_tx);
             nb_tx = rte_ring_enqueue_burst(tq, pkts, nb_rx, NULL);
 
@@ -41,9 +57,9 @@ pthread_forwarder(void *dumy){
                     rte_pktmbuf_free(m);
                 }
             }
-        }else {
-            continue;
         }
+        sched_yield();
+
     }
     return 0;
 

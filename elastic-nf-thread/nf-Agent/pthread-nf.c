@@ -1,4 +1,3 @@
-//TODO: 兼容flow director和nfs
 #include <stdint.h>
 #include <signal.h>
 #include <stdio.h>
@@ -16,53 +15,58 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#include "flow_distributer.h"
+#include "nfs/includes/nf_common.h"
+#include "nfs/includes/simple_forward.h"
+#include "nfs/includes/firewall.h"
+#include "nfs/includes/aes_encrypt.h"
+#include "nfs/includes/aes_decrypt.h"
+
 #define RX_RING_SIZE 512
 #define TX_RING_SIZE 512
-#define NUM_MBUFS 8192 * 4
+#define NUM_MBUFS 8192 * 128
 #define MBUF_SIZE (1600 + sizeof(struct rte_mbuf) + RTE_PKTMBUF_HEADROOM)
 #define MBUF_CACHE_SIZE 0
-#define BURST_SIZE 32
 #define NO_FLAGS 0
-#define RING_MAX 10
+#define RING_MAX 1  // 1个ring
+#define NF_NAME_RX_RING "NF_%u_rq"
+#define NF_NAME_TX_RING "NF_%u_tq"
 
-//port and rx/tx
 #define NUM_PORTS 1
 #define MAX_NUM_PORT 4
-
+#define MAX_LCORE_NUM 24
 #define MAX_NF_NUM 1000
-#define NF_QUEUE_RING_SIZE 128
-#define NF_NAME_RX_RING "Agent_%u_NF_%u_rq"
-#define NF_NAME_TX_RING "Agent_%u_NF_%u_tq"
-static int Agent_id = 1001;
+#define MAX_AGENT_NUM 5
+#define NF_QUEUE_RING_SIZE 256
 
+/* configuartion */
+
+#define SFC_CHAIN_LEN 3 //FIXME: 限定SFC长度为3
+#define MONITOR_PERIOD 30  // 3秒钟更新 一次 monitor的信息
+
+uint16_t nb_nfs = 14; //修改时必须更新nf_func_config, service_time_config, priority_config, start_sfc_config, flow_ip_table
+int rx_exclusive_lcore = 2;//
+// 根据不同机器来制定, 0预留给core manager
+int tx_exclusive_lcore = 4;
+lthread_func_t nf_fnuc_config[MAX_NF_NUM]={pthread_forwarder, pthread_forwarder, pthread_forwarder, pthread_forwarder,
+                                           pthread_forwarder, pthread_forwarder, pthread_forwarder, pthread_forwarder,                                           pthread_forwarder, pthread_forwarder, pthread_forwarder, pthread_forwarder,
+                                           pthread_forwarder, pthread_forwarder, pthread_forwarder, pthread_forwarder,
+                                           pthread_forwarder, pthread_forwarder, pthread_forwarder, pthread_forwarder,};//NF函数，在nfs头文件里面定义
+int start_sfc_config_flag[MAX_NF_NUM]={0, 0, 0, 0, 0, 0, 0, 0,
+                                       0, 0, 0, 0, 0, 0, 0, 0,
+                                       0, 0, 0, 0, 0, 0, 0, 0,};
+uint64_t flow_ip_table[MAX_NF_NUM]={
+        16820416, 33597632,50374848, 67152064, 83929280, 100706496, 117483712, 134260928,
+        151038144, 167815360, 184592576, 201369792, 218147008, 234924224, 251701440, 268478656,
+        285255872,302033088, 318810304, 335587520 };
+
+
+/* variable */
+struct nf_thread_info *nf[ MAX_NF_NUM];
 static uint8_t port_id_list[NUM_PORTS] = {  0};
-
 static struct rte_mempool *pktmbuf_pool;
 static uint8_t keep_running = 1;
-
-//now each rx/tx work for one flow
-struct tx_rx_thread_info
-{
-    uint8_t port;
-    uint8_t queue;
-    uint16_t level;
-    uint8_t thread_id;
-    uint16_t fid;
-};
-
-struct nf_info{
-
-    struct rte_ring *rx_q;
-    struct rte_rinf *tx_q;
-    int nf_id;
-    uint16_t lcore_id;
-};
-struct nf_thread_info{
-    int nf_id;
-};
-
-struct nf_info *nfs_info_data;
-uint16_t nb_nfs= 3;
+uint16_t nb_lcores = 0;
 
 static const struct rte_eth_conf port_conf_default = {
         .rxmode = {
@@ -79,6 +83,12 @@ static const struct rte_eth_conf port_conf_default = {
                 .mq_mode = ETH_MQ_TX_NONE,
         },
 };
+
+void handle_signal(int sig)
+{
+    if (sig == SIGINT || sig == SIGTERM)
+        keep_running = 0;
+}
 
 /*
  * Initializes a given port using global settings and with the RX buffers
@@ -171,138 +181,14 @@ init_mbuf_pools(void) {
     return (pktmbuf_pool == NULL); /* 0  on success */
 }
 
-
-
-struct ipv4_hdr*
-get_pkt_ipv4_hdr(struct rte_mbuf* pkt) {
-    struct ipv4_hdr* ipv4 = (struct ipv4_hdr*)(rte_pktmbuf_mtod(pkt, uint8_t*) + sizeof(struct ether_hdr));
-
-    /* In an IP packet, the first 4 bits determine the version.
-     * The next 4 bits are called the Internet Header Length, or IHL.
-     * DPDK's ipv4_hdr struct combines both the version and the IHL into one uint8_t.
-     */
-    uint8_t version = (ipv4->version_ihl >> 4) & 0b1111;
-    if (unlikely(version != 4)) {
-        return NULL;
-    }
-    return ipv4;
-}
-
-static void handle_signal(int sig)
-{
-    if (sig == SIGINT || sig == SIGTERM)
-        keep_running = 0;
-}
-
-/*
- *  send pkts through one port for flows identified from start_fid to end_fid,
- *  tx rate is set by the parameter tx_delay[tx_id]
- */
-static int lcore_tx_main(void *arg) {
-    uint16_t i, j, sent, nb_rx, nb_tx;
-    uint16_t thread_id;
-    uint16_t queue_id, port_id;
-    struct tx_rx_thread_info *tx = (struct tx_rx_thread_info *)arg;
-    struct rte_mbuf *pkts[BURST_SIZE];
-    struct rte_ring *ring;
-
-    signal(SIGINT, handle_signal);
-    signal(SIGTERM, handle_signal);
-
-    thread_id = tx->thread_id;
-    port_id = tx->port;
-    queue_id = tx->queue;
-
-    ring = nfs_info_data[thread_id%nb_nfs].tx_q;
-
-    printf("Core %d: Running TX thread %d,\n", rte_lcore_id(), tx->thread_id);
-
-    for(;keep_running;){
-//        printf("tx %d try dequeue pkt from nf ring %d", thread_id, thread_id%nb_nfs);
-        nb_rx = rte_ring_dequeue_burst(ring, pkts, BURST_SIZE, NULL);
-//        printf("suc\n");
-
-        if(unlikely(nb_rx>0)){
-            //do somthoie
-//            printf("tx %d suc recv %d pkts from nf %d\n", thread_id, nb_rx, thread_id%nb_nfs);
-            nb_tx = rte_eth_tx_burst(port_id, queue_id, pkts, nb_rx);
-//            printf("tx %d suc send out %d pkts\n", thread_id, nb_tx);
-            if (unlikely(nb_tx < nb_rx)) {
-                do {
-                    rte_pktmbuf_free(pkts[nb_tx]);
-                } while (++nb_tx < nb_rx);
-            }//end free if
-//            printf("finish a batch\n");
-        }//end process if
-
-    }
-
-    return 0;
-}
-
-/*
- * receive pkts from all queues of one port and update the stats of ports and flows
- */
-static int lcore_rx_main(void *arg) {
-
-    uint16_t i, queue_id, receive, p_id, thread_id, nb_tx;
-    struct ipv4_hdr *ipv4_hdr;
-    struct tx_rx_thread_info *rx = (struct tx_rx_thread_info *)arg;
-    struct rte_mbuf *pkts[BURST_SIZE];
-    struct timespec *payload, now = {0, 0};
-    FILE *fp;
-
-    signal(SIGINT, handle_signal);
-    signal(SIGTERM, handle_signal);
-
-    p_id = rx->port;
-    queue_id = rx->queue;
-    thread_id = rx->thread_id;
-
-    printf("Core %d: Running RX thread %d for port %d queue %d\n", rte_lcore_id(), thread_id, p_id, queue_id);
-    rte_delay_ms(1000);
-    for (; keep_running;) {
-//        printf("try to recv pkts\n");
-        receive = rte_eth_rx_burst(p_id, queue_id, pkts, BURST_SIZE);
-//        printf("suc\n");
-
-        if (likely(receive > 0)) {
-//            if(thread_id == 1)
-//                printf("rx %d recv %d pkts\n", thread_id, receive);
-            for (i = 0; i < receive; i++) {
-
-//                ipv4_hdr = get_pkt_ipv4_hdr(pkts[i]);
-            }
-            //TODO: classifier pkts should follow some rule
-            nb_tx = rte_ring_enqueue_burst(nfs_info_data[thread_id%nb_nfs].rx_q, pkts, receive, NULL);
-            if (unlikely(nb_tx < receive)) {
-                uint32_t k;
-                for (k = nb_tx; k < receive; k++) {
-                    struct rte_mbuf *m = pkts[k];
-                    rte_pktmbuf_free(m);
-                }
-            }
-
-        }else {
-            continue;
-        }
-    }
-    return 0;
-}
-
-int comp(const void*a, const void *b){
-
-    return  *(int *)b - *(int *)a;
-}
-
 static inline const char * get_nf_rq_name(int i){
     static char buffer[sizeof(NF_NAME_RX_RING) + 10];
-    snprintf(buffer, sizeof(buffer)-1, NF_NAME_RX_RING, Agent_id, i);
+    snprintf(buffer, sizeof(buffer)-1, NF_NAME_RX_RING, i);
     return buffer;
 }
 char *get_nf_tq_name(int i){
     static char buffer[sizeof(NF_NAME_TX_RING)+10];
-    snprintf(buffer, sizeof(buffer)-1, NF_NAME_TX_RING,Agent_id, i);
+    snprintf(buffer, sizeof(buffer)-1, NF_NAME_TX_RING, i);
     return buffer;
 
 }
@@ -353,17 +239,14 @@ lthread_nf(void *dumy){
 }
 int main(int argc, char *argv[]) {
 
+
     int ret, i, j;
     uint8_t total_ports, cur_lcore;
-    struct tx_rx_thread_info *tx[2 * MAX_NUM_PORT];//infor of port using by thread
-    struct tx_rx_thread_info *rx[2 * MAX_NUM_PORT];
-    struct nf_thread_info *nf[ 2 * MAX_NUM_PORT];
-    int rx_thread_num;
-    int tx_thread_num;
+    int start_sfc = 0;
+
     int socket_id = rte_socket_id();
     const char *rq_name;
     const char *tq_name;
-    int delay_time = 1000;
 
     ret = rte_eal_init(argc, argv);
     if (ret < 0)
@@ -376,31 +259,8 @@ int main(int argc, char *argv[]) {
     signal(SIGTERM, handle_signal);
 
     total_ports = rte_eth_dev_count();
-    rx_thread_num = total_ports * 2;
-    tx_thread_num = total_ports * 2;
 
     printf("available ports: %d\n", total_ports);
-
-    //configuration of each tx thread, each tx thread send one flow
-    for(i = 0; i< tx_thread_num;i++){
-
-        tx[i] = calloc(1, sizeof(struct tx_rx_thread_info));
-        //50-50 distribute to 2 ports
-        tx[i]->port = 0;//1:1 allocate tx thread to 2 ports
-        tx[i]->queue = i ;
-        tx[i]->thread_id = i;
-        printf("rx[%d]->port %d queue %d\n", i, tx[i]->port, tx[i]->queue);
-    }
-
-    printf("rx_thread_num:%d\n", rx_thread_num);
-    for (i = 0; i < rx_thread_num ; ++i) {
-        rx[i] = calloc(1, sizeof(struct tx_rx_thread_info));
-        //50-50 distribute to 2 ports
-        rx[i]->port = 0;
-        rx[i]->queue = i;
-        printf("rx[%d]->port %d queue %d\n", i, rx[i]->port, rx[i]->queue);
-        rx[i]->thread_id = i;
-    }
 
     cur_lcore = rte_lcore_id();
     if (total_ports < 1)
@@ -410,14 +270,38 @@ int main(int argc, char *argv[]) {
         rte_exit(EXIT_FAILURE, "Cannot create needed mbuf pools\n");
 
     for(i = 0;i<NUM_PORTS;i++){
-        ret = port_init(port_id_lisy[i]);
+        ret = port_init(port_id_list[i]);
         if (ret != 0)
-            rte_exit(EXIT_FAILURE, "Cannot init tx port %u\n", tx[i]->port);
+            rte_exit(EXIT_FAILURE, "Cannot init port %u\n",port_id_list[i]);
     }
-    nfs_info_data = rte_calloc("nfs info details",
-                               10, sizeof(*nfs_info_data), 0);
+    printf(">>>try to allocate nf info data\n");
+    nfs_info_data = rte_calloc("nfs info",
+                               MAX_NF_NUM, sizeof(*nfs_info_data), 0);
     if (nfs_info_data == NULL)
-        rte_exit(EXIT_FAILURE, "Cannot allocate memory for nf program details\n");
+        rte_exit(EXIT_FAILURE, "Cannot allocate memory for nf  details\n");
+    printf(">>>suc allocate mem\n");
+
+    // 分配一个核给 flow distributor rx thread
+    flow_table_init();
+    struct port_info *port_info1 = calloc(1, sizeof(struct port_info));
+    port_info1->port_id = 0;
+    port_info1->queue_id = 0;
+    cur_lcore = rx_exclusive_lcore;
+    if (rte_eal_remote_launch(flow_director_rx_thread, (void *) port_info1, cur_lcore) == -EBUSY) {
+        printf("Core %d is already busy, can't use for RX of flow director \n", cur_lcore);
+        return -1;
+    }
+
+    // 分配一个核给 flow distributor tx thread
+    struct port_info *port_info2 = calloc(1, sizeof(struct port_info));
+    port_info2->port_id = 0;
+    port_info2->queue_id = 0;
+    cur_lcore = tx_exclusive_lcore;
+    if (rte_eal_remote_launch(flow_director_tx_thread, (void *) port_info2, cur_lcore) == -EBUSY) {
+        printf("Core %d is already busy, can't use for TX of flow director \n", cur_lcore);
+        return -1;
+    }
+    /* init nf info */
     for(i = 0;i<nb_nfs;i++){
         rq_name = get_nf_rq_name(i);
         tq_name = get_nf_tq_name(i);
@@ -427,42 +311,78 @@ int main(int argc, char *argv[]) {
             rte_exit(EXIT_FAILURE, "cannot create ring for nf %d\n", i);
         }
         nfs_info_data[i].nf_id = i;
+        nfs_info_data[i].fun = nf_fnuc_config[i];
+        nfs_info_data[i].state = rte_calloc("nf state", MAX_STATE_LEN, sizeof(*nfs_info_data[i].state), 0);
+        nfs_info_data[i].state->hash_map = rte_calloc("nf hash map", BIG_PRIME, sizeof(*nfs_info_data[i].state->hash_map), 0);
+//        nfs_info_data[i].state->key_schedule = rte_calloc("nf key schedule", AES_ENCRYPT_LEN, sizeof(WORD), 0);
+
+        printf(">>>suc to allocate nf state\n");
+        if(start_sfc_config_flag[i] == 0){
+            printf(">>>add flow entry %d-->nf %d\n", flow_ip_table[i], i);
+            flow_table_add_entry(flow_ip_table[i], i); // flow hash (这里使用的是flow的源IP值), nf_id
+            bind_nf_to_rxring(i, nfs_info_data[i].rx_q);
+            printf("register nf %d tx ring\n", i);
+            nf_need_output(i, 0, nfs_info_data[i].tx_q);
+            if(start_sfc == 1){
+                start_sfc = 0;
+                printf("register nf %d tx ring\n", i-1);
+                nf_need_output(i, 0, nfs_info_data[i-1].tx_q);  // 参数为 nf_id, 要往哪个port 上 发数据, nf_id 对应的tx_ring
+            }
+        }else{
+            if(start_sfc == 0){
+                start_sfc = 1;//first nf of sfc
+                printf(">>>add flow entry %d-->chain head nf %d\n", flow_ip_table[i], i);
+                flow_table_add_entry(flow_ip_table[i], i); // flow hash (这里使用的是flow的源IP值), nf_id
+                bind_nf_to_rxring(i, nfs_info_data[i].rx_q);
+                //绑定下一跳的rx
+            }else{
+                //覆盖上一跳NF的tx ring
+                nfs_info_data[i-1].tx_q = nfs_info_data[i].rx_q;
+                if(i == nb_nfs -1){
+                    printf("register nf %d tx ring\n", i);
+                    nf_need_output(i, 0, nfs_info_data[i].tx_q);
+                }
+            }
+        }
         nf[i] = calloc(1, sizeof(struct nf_thread_info));
         nf[i]->nf_id = i;
-    }
-    printf(">>>suc create nf ring\n");
 
-    for( i = 0;i< rx_thread_num ;i++){
-        cur_lcore = rte_get_next_lcore(cur_lcore, 1, 1);
-        printf("in launching rx %d port %d\n", i, rx[i]->port);
-        if (rte_eal_remote_launch(lcore_rx_main, (void *)rx[i],  cur_lcore) == -EBUSY) {
-            printf("Core %d is already busy, can't use for rx %d \n", cur_lcore, i);
-            return -1;
-        }
     }
-
+    printf("finish load nfs info\n");
     for(i = 0;i<nb_nfs;i++){
         cur_lcore = rte_get_next_lcore(cur_lcore, 1, 1);
+        cur_lcore = rte_get_next_lcore(cur_lcore, 1, 1);
+
         printf("launching nf thread %d\n", i);
-        if(rte_eal_remote_launch(lthread_nf, (void *)nf[i], cur_lcore) == -EBUSY){
+        if(rte_eal_remote_launch(nfs_info_data[i].fun, (void *)nf[i], cur_lcore) == -EBUSY){
             printf("core %d cannot use for nf %d\n", cur_lcore, i);
             return -1;
         }
     }
-    //
-    for(i = 0;i<tx_thread_num;i++){
-        cur_lcore = rte_get_next_lcore(cur_lcore, 1, 1);
-        if (rte_eal_remote_launch(lcore_tx_main, (void *) tx[i], cur_lcore) == -EBUSY) {
-            printf("Core %d is already busy, can't use for tx \n", cur_lcore);
-            return -1;
-        }
-    }
+    printf("Entering main loop on core %d\n", rte_lcore_id());
+    int monitor_tick = 0, nf_id;
+    uint64_t processed_pps = 0;
+    uint64_t dropped_pps = 0; // nf 0 每秒丢包数
+    double dropped_ratio = 0;
 
-    int flow_id = 0;
     for (; keep_running;){
 
-        rte_delay_ms(delay_time);
+        rte_delay_ms(500);
 //        rte_delay_ms(500);
+        monitor_tick++;
+        if (monitor_tick == MONITOR_PERIOD) {
+            monitor_update(3);
+            monitor_tick = 0;
+        }
+        for(nf_id = 0;nf_id<nb_nfs; nf_id++){
+
+            processed_pps = get_processed_pps_with_nf_id(nf_id);  // nf 0 的处理能力
+            dropped_pps = get_dropped_pps_with_nf_id(nf_id); // nf 0 每秒丢包数
+            dropped_ratio = get_dropped_ratio_with_nf_id(nf_id); // nf 0 这段时间的丢包率
+            printf(">>> NF %d <<< processing pps: %9ld, drop pps: %9ld, drop ratio: %9lf\n", nf_id, processed_pps,
+                   dropped_pps, dropped_ratio);
+//                }
+        }
 
     }
     return 0;

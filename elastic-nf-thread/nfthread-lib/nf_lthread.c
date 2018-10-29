@@ -262,13 +262,17 @@ int
 lthread_create(struct lthread **new_lt, int *lcore_id,
 		lthread_func_t fun, void *arg)
 {
-	if ((new_lt == NULL) || (fun == NULL))
+	if ((new_lt == NULL) || (fun == NULL)) {
+		printf("thread is null\n");
 		return POSIX_ERRNO(EINVAL);
+	}
 
 	if (*lcore_id < 0)
 		*lcore_id = rte_lcore_id();
-	else if (*lcore_id > LTHREAD_MAX_LCORES)
+	else if (*lcore_id > LTHREAD_MAX_LCORES) {
+		printf("lcore exceed bound\n");
 		return POSIX_ERRNO(EINVAL);
+	}
 
 	struct lthread *lt = NULL;
 	int tid = rte_atomic16_read(&num_nf_threads);
@@ -284,8 +288,10 @@ lthread_create(struct lthread **new_lt, int *lcore_id,
 	}
 	/* allocate a thread structure */
 	lt = _lthread_objcache_alloc((THIS_SCHED)->lthread_cache);
-	if (lt == NULL)
+	if (lt == NULL) {
+		printf("cannot alloc a objcache for lt\n");
 		return POSIX_ERRNO(EAGAIN);
+	}
 
 	bzero(lt, sizeof(struct lthread));
 	lt->root_sched = THIS_SCHED;
@@ -301,7 +307,7 @@ lthread_create(struct lthread **new_lt, int *lcore_id,
 	rte_wmb();
 	_ready_queue_insert(_lthread_sched_get(*lcore_id), lt);
 //	if(*lcore_id==0)
-//		printf(">create and insert lt %d into core %d\n", lt->thread_id, *lcore_id);
+		printf(">create and insert lt %d into core %d\n", lt->thread_id, *lcore_id);
 	return tid;
 }
 

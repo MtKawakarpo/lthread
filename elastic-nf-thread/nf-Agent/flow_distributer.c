@@ -1,6 +1,5 @@
 /*
 * Created by Zhilong Zheng
-* TODO: 当发包器发多条流时，端到端吞吐下降很快
 */
 
 #include <stdio.h>
@@ -199,20 +198,22 @@ int flow_director_rx_thread(struct port_info *args) {
 //            _ipv4_hdr = onvm_pkt_ipv4_hdr(pkts[i]);
             pkt = (struct rte_mbuf*)pkts[i];
 
-            _ipv4_hdr = rte_pktmbuf_mtod_offset(pkt, struct ipv4_hdr *,
-            sizeof(struct ether_hdr));
+            _ipv4_hdr = rte_pktmbuf_mtod_offset(pkt, struct ipv4_hdr *, sizeof(struct ether_hdr));
 
 //            _udp_hdr = (struct udp_hdr *)((unsigned char *) _ipv4_hdr +
 //                                          sizeof(struct ipv4_hdr));
 //            if (_udp_hdr == NULL) {
 //                printf("An invalid udp header!\n");
 //            }
-
+//
 //            printf(" UDP port %d\n", _ipv4_hdr->src_addr);
-
+//
             tmp_flow = flow_table_get_flow(_ipv4_hdr->src_addr);
 
             if (tmp_flow == NULL) {
+
+                printf(" new flow %d\n", _ipv4_hdr->src_addr);
+
                 garbage_mbufs[garbage_count] = pkts[i];
                 garbage_count++;
                 continue;
@@ -331,6 +332,7 @@ int flow_director_tx_thread(struct port_info *args) {
             if (unlikely(deq_nb == 0))
                 continue;
 
+//            printf("tx recv nf %d with %d pkts\n", nf_txconf_mapping[i]->nf_id, deq_nb);
             ret = rte_eth_tx_burst(nf_txconf_mapping[i]->out_port, queue_id, pkts, deq_nb);
             if (unlikely(ret < deq_nb)) {
                 pktmbuf_free_bulk(&pkts[ret], deq_nb - ret);
