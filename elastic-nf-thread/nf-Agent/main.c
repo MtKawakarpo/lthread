@@ -56,7 +56,7 @@
 #define SFC_CHAIN_LEN 3 //FIXME: 限定SFC长度为3
 #define MONITOR_PERIOD 30  // 3秒钟更新 一次 monitor的信息
 
-uint16_t nb_nfs = 12; //修改时必须更新nf_func_config, service_time_config, priority_config, start_sfc_config, flow_ip_table
+uint16_t nb_nfs = 4; //修改时必须更新nf_func_config, service_time_config, priority_config, start_sfc_config, flow_ip_table
 uint16_t nb_agents = 1;//修改时必须更新coremask_set
 int rx_exclusive_lcore[2] = {2, 4};//
 // 根据不同机器来制定, 0预留给core manager
@@ -88,7 +88,7 @@ int nf_tx_port[MAX_NF_NUM] = {0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1}; // 指�
  * piority 0: core 6,8,10,(0x540)
  * p1:12,14(0x5000), p2:16(0x10000)  p3:18,20(0x140000)*/
 uint64_t coremask_set[MAX_AGENT_NUM]={
-        0x40001, 0x500002, 0x1000001, 0x14000002};
+        0x140001, 0x500002, 0x1000001, 0x14000002};
 //        0x554005, 0x500002, 0x1000001, 0x14000002};
 
 struct Agent_info{

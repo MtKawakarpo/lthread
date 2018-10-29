@@ -23,6 +23,8 @@
 #include <rte_ip.h>
 #include <rte_tcp.h>
 #include <rte_udp.h>
+#include <rte_atomic.h>
+#include <rte_atomic_64.h>
 
 #include "flow_distributer.h"
 
@@ -32,7 +34,7 @@
 
 #define MAX_NFS_PER_DIRECTOR 4
 
-int is_rx_configged = 0;
+static rte_atomic16_t is_rx_configged;
 
 // 全局数据结构
 struct flow *flows;
@@ -99,6 +101,8 @@ void flow_table_init() {
 
     printf("-------- Init flow table successfully! --------\n");
     flow_table->nb_entries = 0;
+    rte_atomic16_init(&is_rx_configged);
+    rte_atomic16_set(&is_rx_configged, 0);
 }
 
 // TODO: 后面按dpdk的hash改，这里先做简化
@@ -149,7 +153,7 @@ int flow_director_rx_thread(struct port_info *args) {
 //    extern struct nf_flow_stats *last_stats;
 //    extern struct nf_flow_stats *cur_stats;
 
-    if (!is_rx_configged) {
+    if (!rte_atomic16_read(&is_rx_configged)) {
         last_stats = rte_calloc("last_stats", MAX_NF_NB, sizeof(*last_stats), 0);
         if (last_stats == NULL)
             rte_exit(EXIT_FAILURE, "Cannot allocate memory for last_flow_stats\n");
@@ -167,7 +171,7 @@ int flow_director_rx_thread(struct port_info *args) {
             cur_stats[i].processed_pkts = 0;
             cur_stats[i].dropped_pkts = 0;
         }
-        is_rx_configged = 1;
+        rte_atomic16_set(&is_rx_configged, 1);
     }
 
     printf("RX monitor 初始化成功\n");
