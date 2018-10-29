@@ -30,6 +30,10 @@
 #define MAX_PKTS_BURST_RX 32
 #define MAX_PKTS_BURST_TX 32
 
+#define MAX_NFS_PER_DIRECTOR 4
+
+int is_rx_configged = 0;
+
 // 全局数据结构
 struct flow *flows;
 int flow_count;
@@ -110,6 +114,7 @@ struct flow *flow_table_get_flow(uint32_t hash) {
 }
 
 void bind_nf_to_rxring(int nf_id, struct rte_ring *rx_ring) {
+    printf("--- Bind NF %d to a rx ring\n", nf_id);
     nf_rxring_mapping[nf_id] = rx_ring;
 }
 
@@ -143,22 +148,26 @@ int flow_director_rx_thread(struct port_info *args) {
     // Rx上初始化一个monitor
 //    extern struct nf_flow_stats *last_stats;
 //    extern struct nf_flow_stats *cur_stats;
-    last_stats = rte_calloc("last_stats", MAX_NF_NB, sizeof(*last_stats), 0);
-    if (last_stats == NULL)
-        rte_exit(EXIT_FAILURE, "Cannot allocate memory for last_flow_stats\n");
-    cur_stats = rte_calloc("cur_stats", MAX_NF_NB, sizeof(*cur_stats), 0);
-    if (cur_stats == NULL)
-        rte_exit(EXIT_FAILURE, "Cannot allocate memory for cur_flow_stats\n");
 
-    for (i = 0; i < MAX_NF_NB; ++i) {
-        last_stats[i].total_pkts = 0;
-        last_stats[i].processed_pkts = 0;
-        last_stats[i].dropped_pkts = 0;
-    }
-    for (i = 0; i < MAX_NF_NB; ++i) {
-        cur_stats[i].total_pkts = 0;
-        cur_stats[i].processed_pkts = 0;
-        cur_stats[i].dropped_pkts = 0;
+    if (!is_rx_configged) {
+        last_stats = rte_calloc("last_stats", MAX_NF_NB, sizeof(*last_stats), 0);
+        if (last_stats == NULL)
+            rte_exit(EXIT_FAILURE, "Cannot allocate memory for last_flow_stats\n");
+        cur_stats = rte_calloc("cur_stats", MAX_NF_NB, sizeof(*cur_stats), 0);
+        if (cur_stats == NULL)
+            rte_exit(EXIT_FAILURE, "Cannot allocate memory for cur_flow_stats\n");
+
+        for (i = 0; i < MAX_NF_NB; ++i) {
+            last_stats[i].total_pkts = 0;
+            last_stats[i].processed_pkts = 0;
+            last_stats[i].dropped_pkts = 0;
+        }
+        for (i = 0; i < MAX_NF_NB; ++i) {
+            cur_stats[i].total_pkts = 0;
+            cur_stats[i].processed_pkts = 0;
+            cur_stats[i].dropped_pkts = 0;
+        }
+        is_rx_configged = 1;
     }
 
     printf("RX monitor 初始化成功\n");
@@ -175,7 +184,7 @@ int flow_director_rx_thread(struct port_info *args) {
 
 //        queue_id++;
 //        queue_id%=10;
-        if (reset_stats) {
+        if (reset_stats && (port_id == 0)) {
             for (i = 0; i < MAX_NF_NB; ++i) {
                 cur_stats[i].processed_pkts = 0;
                 cur_stats[i].dropped_pkts = 0;
@@ -292,6 +301,7 @@ double get_dropped_ratio_with_nf_id (int nf_id) {
 
 
 void nf_need_output(int nf_id, int out_port, struct rte_ring *nf_tx_ring) {
+    printf("NF %d needs outputting to port %d\n", nf_id, out_port);
     struct nf_tx_conf *add_conf = rte_calloc(NULL, 1, sizeof(struct nf_tx_conf *), 0);
 
     add_conf->nf_id = nf_id;
@@ -323,8 +333,10 @@ int flow_director_tx_thread(struct port_info *args) {
     while (1) {
 
         // 轮询所有的nf_txring
-        for (i = 0; i < txconf_count; ++i) {
+        for (i = 0; i < txconf_count; ++i) {  // 每个 tx director负责一部分
             if (nf_txconf_mapping[i] == NULL)
+                continue;
+            if (nf_txconf_mapping[i]->out_port != port_id)
                 continue;
             deq_nb = rte_ring_sc_dequeue_bulk(nf_txconf_mapping[i]->nf_tx_ring,
                                               (void *)pkts, MAX_PKTS_BURST_TX, NULL);

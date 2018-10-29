@@ -35,13 +35,13 @@
 
 #define RX_RING_SIZE 512
 #define TX_RING_SIZE 512
-#define NUM_MBUFS 8192 * 128
+#define NUM_MBUFS 8192 * 128 / 2
 #define MBUF_SIZE (1600 + sizeof(struct rte_mbuf) + RTE_PKTMBUF_HEADROOM)
 #define MBUF_CACHE_SIZE 0
 #define NO_FLAGS 0
 #define RING_MAX 1  // 1个ring
 
-#define NUM_PORTS 1
+#define NUM_PORTS 2
 #define MAX_NUM_PORT 4
 #define MAX_LCORE_NUM 24
 #define MAX_NF_NUM 1000
@@ -58,9 +58,9 @@
 
 uint16_t nb_nfs = 12; //修改时必须更新nf_func_config, service_time_config, priority_config, start_sfc_config, flow_ip_table
 uint16_t nb_agents = 1;//修改时必须更新coremask_set
-int rx_exclusive_lcore = 2;//
+int rx_exclusive_lcore[2] = {2, 4};//
 // 根据不同机器来制定, 0预留给core manager
-int tx_exclusive_lcore = 4;
+int tx_exclusive_lcore[2] = {6, 8};
 static const int dv_tolerance = 0;//NF丢包率超过这个阈值才进行扩展处理
 static const int mini_sertime_per_core = 1;//core的total service time低于这个阈值则被认定空闲，应该回收
 lthread_func_t nf_fnuc_config[MAX_NF_NUM]={lthread_firewall, lthread_firewall, lthread_firewall, lthread_firewall,
@@ -81,12 +81,14 @@ uint64_t flow_ip_table[MAX_NF_NUM]={
         16820416, 33597632,50374848, 67152064, 83929280, 100706496, 117483712, 134260928,
         151038144, 167815360, 184592576, 201369792, 218147008, 234924224, 251701440, 268478656,
         285255872,302033088, 318810304, 335587520 };
+
+int nf_tx_port[MAX_NF_NUM] = {0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1}; // 指定NF应该output到哪个端口
 /* initial core policy:
  * CoreManager: core 0,
  * piority 0: core 6,8,10,(0x540)
  * p1:12,14(0x5000), p2:16(0x10000)  p3:18,20(0x140000)*/
 uint64_t coremask_set[MAX_AGENT_NUM]={
-        0x54003, 0x500002, 0x1000001, 0x14000002};
+        0x40001, 0x500002, 0x1000001, 0x14000002};
 //        0x554005, 0x500002, 0x1000001, 0x14000002};
 
 struct Agent_info{
@@ -109,7 +111,7 @@ struct core_info{
 struct Agent_info *agents_info_data;
 struct core_info *cores_info_data;
 struct nf_thread_info *nf[ MAX_NF_NUM];
-static uint8_t port_id_list[NUM_PORTS] = {  0};
+static uint8_t port_id_list[NUM_PORTS] = {0, 1};
 static struct rte_mempool *pktmbuf_pool;
 static uint8_t keep_running = 1;
 uint16_t nb_lcores = 0;
@@ -148,6 +150,8 @@ static int port_init(uint8_t port) {
 
     int retval;
     uint16_t q;
+
+    printf(">>>>>>>>>> init port %d <<<<<<<<<<<<<\n", port);
 
     if (port >= rte_eth_dev_count())
         return -1;
@@ -511,6 +515,7 @@ int main(int argc, char *argv[]) {
 
     int ret, i, j;
     uint8_t total_ports, cur_lcore;
+    int port_nb = 2;
 
     int socket_id = rte_socket_id();
     const char *rq_name;
@@ -537,7 +542,7 @@ int main(int argc, char *argv[]) {
     if (ret != 0)
         rte_exit(EXIT_FAILURE, "Cannot create needed mbuf pools\n");
 
-    for(i = 0;i<NUM_PORTS;i++){
+    for(i = 0; i < port_nb; i++){
         ret = port_init(port_id_list[i]);
         if (ret != 0)
             rte_exit(EXIT_FAILURE, "Cannot init port %u\n",port_id_list[i]);
@@ -555,25 +560,29 @@ int main(int argc, char *argv[]) {
     if(cores_info_data == NULL)
         rte_exit(EXIT_FAILURE, "Cannot allocate mem for core info\n");
 
-    // 分配一个核给 flow distributor rx thread
+    // 分配一个核给 flow distributor rx thread1
     flow_table_init();
-    struct port_info *port_info1 = calloc(1, sizeof(struct port_info));
-    port_info1->port_id = 0;
-    port_info1->queue_id = 0;
-    cur_lcore = rx_exclusive_lcore;
-    if (rte_eal_remote_launch(flow_director_rx_thread, (void *) port_info1, cur_lcore) == -EBUSY) {
-        printf("Core %d is already busy, can't use for RX of flow director \n", cur_lcore);
-        return -1;
+    for (i = 0; i < port_nb; ++i) {
+        struct port_info *port_info1 = calloc(1, sizeof(struct port_info));
+        port_info1->port_id = i;
+        port_info1->queue_id = 0;
+        cur_lcore = rx_exclusive_lcore[i];
+        if (rte_eal_remote_launch(flow_director_rx_thread, (void *) port_info1, cur_lcore) == -EBUSY) {
+            printf("Core %d is already busy, can't use for RX of flow director \n", cur_lcore);
+            return -1;
+        }
     }
 
-    // 分配一个核给 flow distributor tx thread
-    struct port_info *port_info2 = calloc(1, sizeof(struct port_info));
-    port_info2->port_id = 0;
-    port_info2->queue_id = 0;
-    cur_lcore = tx_exclusive_lcore;
-    if (rte_eal_remote_launch(flow_director_tx_thread, (void *) port_info2, cur_lcore) == -EBUSY) {
-        printf("Core %d is already busy, can't use for TX of flow director \n", cur_lcore);
-        return -1;
+    // 分配一个核给 flow distributor tx thread2
+    for (i = 0; i < port_nb; ++i) {
+        struct port_info *port_info2 = calloc(1, sizeof(struct port_info));
+        port_info2->port_id = i;
+        port_info2->queue_id = 0;
+        cur_lcore = tx_exclusive_lcore[i];
+        if (rte_eal_remote_launch(flow_director_tx_thread, (void *) port_info2, cur_lcore) == -EBUSY) {
+            printf("Core %d is already busy, can't use for TX of flow director \n", cur_lcore);
+            return -1;
+        }
     }
 
     /* init core info */
@@ -617,11 +626,11 @@ int main(int argc, char *argv[]) {
             flow_table_add_entry(flow_ip_table[i], i); // flow hash (这里使用的是flow的源IP值), nf_id
             bind_nf_to_rxring(i, nfs_info_data[i].rx_q);
             printf("register nf %d tx ring\n", i);
-            nf_need_output(i, 0, nfs_info_data[i].tx_q);
+            nf_need_output(i, nf_tx_port[i], nfs_info_data[i].tx_q);
             if(start_sfc == 1){
                 start_sfc = 0;
                 printf("register nf %d tx ring\n", i-1);
-                nf_need_output(i, 0, nfs_info_data[i-1].tx_q);  // 参数为 nf_id, 要往哪个port 上 发数据, nf_id 对应的tx_ring
+                nf_need_output(i, nf_tx_port[i-1], nfs_info_data[i-1].tx_q);  // 参数为 nf_id, 要往哪个port 上 发数据, nf_id 对应的tx_ring
             }
         }else{
             if(start_sfc == 0){
@@ -635,7 +644,7 @@ int main(int argc, char *argv[]) {
                 nfs_info_data[i-1].tx_q = nfs_info_data[i].rx_q;
                 if(i == nb_nfs -1){
                     printf("register nf %d tx ring\n", i);
-                    nf_need_output(i, 0, nfs_info_data[i].tx_q);
+                    nf_need_output(i, nf_tx_port[i], nfs_info_data[i].tx_q);
                 }
             }
         }

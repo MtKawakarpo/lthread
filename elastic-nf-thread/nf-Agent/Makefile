@@ -46,7 +46,7 @@ include $(RTE_SDK)/mk/rte.vars.mk
 APP = nfv-thread
 
 # all source are stored in SRCS-y
-SRCS-y := flow_distributer.c pthread-nf.c  nfs/pkt_help.c nfs/aes.c nfs/lthread-nf/l_firewall.c nfs/lthread-nf/l_aes_encrypt.c nfs/lthread-nf/l_aes_decrypt.c nfs/lthread-nf/l_simple_forward.c nfs/pthread-nf/p_firewall.c nfs/pthread-nf/p_simple_forward.c nfs/pthread-nf/p_aes_encrypt.c nfs/pthread-nf/p_aes_decrypt.c
+SRCS-y := flow_distributer.c main.c  nfs/pkt_help.c nfs/aes.c nfs/lthread-nf/l_firewall.c nfs/lthread-nf/l_aes_encrypt.c nfs/lthread-nf/l_aes_decrypt.c nfs/lthread-nf/l_simple_forward.c nfs/pthread-nf/p_firewall.c nfs/pthread-nf/p_simple_forward.c nfs/pthread-nf/p_aes_encrypt.c nfs/pthread-nf/p_aes_decrypt.c
 #SRCS-y := flow_distributer.c main-indeveloping.c
 include $(NFTHREAD_LIB)/common.mk
 
