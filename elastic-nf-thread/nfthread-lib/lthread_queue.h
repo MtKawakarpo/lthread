@@ -80,7 +80,6 @@ extern "C" {
 
 #include "nf_lthread_int.h"
 #include "nf_lthread.h"
-#include "lthread_diag.h"
 #include "lthread_pool.h"
 
 struct lthread_queue;
@@ -111,9 +110,9 @@ struct lthread_queue {
 	struct lthread_queue *p;
 	char name[LT_MAX_NAME_SIZE];
 
-	DIAG_COUNT_DEFINE(rd);
-	DIAG_COUNT_DEFINE(wr);
-	DIAG_COUNT_DEFINE(size);
+//	DIAG_COUNT_DEFINE(rd);
+//	DIAG_COUNT_DEFINE(wr);
+//	DIAG_COUNT_DEFINE(size);
 
 } __rte_cache_aligned;
 
@@ -144,9 +143,9 @@ _lthread_queue_create(const char *name)
 	new_queue->head = stub;
 	new_queue->tail = stub;
 
-	DIAG_COUNT_INIT(new_queue, rd);
-	DIAG_COUNT_INIT(new_queue, wr);
-	DIAG_COUNT_INIT(new_queue, size);
+//	DIAG_COUNT_INIT(new_queue, rd);
+//	DIAG_COUNT_INIT(new_queue, wr);
+//	DIAG_COUNT_INIT(new_queue, size);
 
 	return new_queue;
 }
@@ -209,8 +208,8 @@ _lthread_queue_insert_mp(struct lthread_queue
 	 */
 	prev->next = n;
 
-	DIAG_COUNT_INC(q, wr);
-	DIAG_COUNT_INC(q, size);
+//	DIAG_COUNT_INC(q, wr);
+//	DIAG_COUNT_INC(q, size);
 
 	return n;
 }
@@ -238,8 +237,8 @@ _lthread_queue_insert_sp(struct lthread_queue
 	prev = q->head;
 	prev->next = q->head = n;
 
-	DIAG_COUNT_INC(q, wr);
-	DIAG_COUNT_INC(q, size);
+//	DIAG_COUNT_INC(q, wr);
+//	DIAG_COUNT_INC(q, size);
 
 	return n;
 }
@@ -268,8 +267,8 @@ _lthread_queue_poll(struct lthread_queue *q)
 		/* free the node */
 		_qnode_free(tail);
 
-		DIAG_COUNT_INC(q, rd);
-		DIAG_COUNT_DEC(q, size);
+//		DIAG_COUNT_INC(q, rd);
+//		DIAG_COUNT_DEC(q, size);
 		return data;
 	}
 	return NULL;
@@ -293,8 +292,8 @@ _lthread_queue_remove(struct lthread_queue *q)
 
 		if (likely(data != NULL)) {
 
-			DIAG_COUNT_INC(q, rd);
-			DIAG_COUNT_DEC(q, size);
+//			DIAG_COUNT_INC(q, rd);
+//			DIAG_COUNT_DEC(q, size);
 			return data;
 		}
 		rte_compiler_barrier();

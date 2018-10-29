@@ -137,11 +137,11 @@ extern "C" {
 
 
 struct lthread;
-struct lthread_cond;
-struct lthread_mutex;
+//struct lthread_cond;
+//struct lthread_mutex;
 
-struct lthread_condattr;
-struct lthread_mutexattr;
+//struct lthread_condattr;
+//struct lthread_mutexattr;
 
 typedef void (*lthread_func_t) (void *);
 
@@ -368,7 +368,7 @@ void lthread_exit(void *val);
   * @return
   *  none
   */
-void lthread_sleep(uint64_t nsecs);
+//void lthread_sleep(uint64_t nsecs);
 
 /**
   * Cause the current lthread to sleep for n cpu clock ticks
@@ -384,7 +384,7 @@ void lthread_sleep(uint64_t nsecs);
   * @return
   *  none
   */
-void lthread_sleep_clks(uint64_t clks);
+//void lthread_sleep_clks(uint64_t clks);
 
 /**
   * Yield the current lthread
@@ -659,9 +659,9 @@ extern __typeof__(type)__attribute((section("per_lt"))) per_lt_##name
   *  EAGAIN insufficient resources
   */
 
-int
-lthread_mutex_init(char *name, struct lthread_mutex **mutex,
-		   const struct lthread_mutexattr *attr);
+//int
+//lthread_mutex_init(char *name, struct lthread_mutex **mutex,
+//		   const struct lthread_mutexattr *attr);
 
 /**
   * Destroy a mutex
@@ -679,7 +679,7 @@ lthread_mutex_init(char *name, struct lthread_mutex **mutex,
   *  EINVAL mutex was not an initialized mutex
   *  EBUSY mutex was still in use
   */
-int lthread_mutex_destroy(struct lthread_mutex *mutex);
+//int lthread_mutex_destroy(struct lthread_mutex *mutex);
 
 /**
   * Lock a mutex
@@ -702,7 +702,7 @@ int lthread_mutex_destroy(struct lthread_mutex *mutex);
   *  EDEADLOCK the mutex was already owned by the calling thread
   */
 
-int lthread_mutex_lock(struct lthread_mutex *mutex);
+//int lthread_mutex_lock(struct lthread_mutex *mutex);
 
 /**
   * Try to lock a mutex
@@ -723,7 +723,7 @@ int lthread_mutex_lock(struct lthread_mutex *mutex);
   * EINVAL mutex was not an initialized mutex
   * EBUSY the mutex was already locked by another thread
   */
-int lthread_mutex_trylock(struct lthread_mutex *mutex);
+//int lthread_mutex_trylock(struct lthread_mutex *mutex);
 
 /**
   * Unlock a mutex
@@ -744,7 +744,7 @@ int lthread_mutex_trylock(struct lthread_mutex *mutex);
   *  EPERM the mutex was not owned by the calling thread
   */
 
-int lthread_mutex_unlock(struct lthread_mutex *mutex);
+//int lthread_mutex_unlock(struct lthread_mutex *mutex);
 
 /**
   * Initialize a condition variable
@@ -768,9 +768,9 @@ int lthread_mutex_unlock(struct lthread_mutex *mutex);
   *  EINVAL cond was not a valid pointer
   *  EAGAIN insufficient resources
   */
-int
-lthread_cond_init(char *name, struct lthread_cond **c,
-		  const struct lthread_condattr *attr);
+//int
+//lthread_cond_init(char *name, struct lthread_cond **c,
+//		  const struct lthread_condattr *attr);
 
 /**
   * Destroy a condition variable
@@ -786,7 +786,7 @@ lthread_cond_init(char *name, struct lthread_cond **c,
   *  EBUSY condition variable was still in use
   *  EINVAL was not an initialised condition variable
   */
-int lthread_cond_destroy(struct lthread_cond *cond);
+//int lthread_cond_destroy(struct lthread_cond *cond);
 
 /**
   * Wait on a condition variable
@@ -806,7 +806,7 @@ int lthread_cond_destroy(struct lthread_cond *cond);
   *  0 The condition was signalled ( Success )
   *  EINVAL was not a an initialised condition variable
   */
-int lthread_cond_wait(struct lthread_cond *c, uint64_t reserved);
+//int lthread_cond_wait(struct lthread_cond *c, uint64_t reserved);
 
 /**
   * Signal a condition variable
@@ -822,7 +822,7 @@ int lthread_cond_wait(struct lthread_cond *c, uint64_t reserved);
   *  0 The condition was signalled ( Success )
   *  EINVAL was not a an initialised condition variable
   */
-int lthread_cond_signal(struct lthread_cond *c);
+//int lthread_cond_signal(struct lthread_cond *c);
 
 /**
   * Broadcast a condition variable
@@ -838,7 +838,7 @@ int lthread_cond_signal(struct lthread_cond *c);
   *  0 The condition was signalled ( Success )
   *  EINVAL was not a an initialised condition variable
   */
-int lthread_cond_broadcast(struct lthread_cond *c);
+//int lthread_cond_broadcast(struct lthread_cond *c);
 
 #ifdef __cplusplus
 }

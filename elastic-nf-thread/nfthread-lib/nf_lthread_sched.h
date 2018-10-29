@@ -69,7 +69,6 @@ extern "C" {
 #include "nf_lthread_int.h"
 #include "lthread_queue.h"
 #include "lthread_objcache.h"
-#include "lthread_diag.h"
 #include "ctx.h"
 
 static uint64_t core_mask_count;
@@ -102,17 +101,17 @@ static inline int _ready_queue_empty(struct lthread_queue *q)
 	return _lthread_queue_empty(q);
 }
 
-static inline uint64_t _sched_now(void)
-{
-	uint64_t now = rte_rdtsc();
-
-	if (now > (THIS_SCHED)->birth)
-		return now - (THIS_SCHED)->birth;
-	if (now < (THIS_SCHED)->birth)
-		return (THIS_SCHED)->birth - now;
-	/* never return 0 because this means sleep forever */
-	return 1;
-}
+//static inline uint64_t _sched_now(void)
+//{
+//	uint64_t now = rte_rdtsc();
+//
+//	if (now > (THIS_SCHED)->birth)
+//		return now - (THIS_SCHED)->birth;
+//	if (now < (THIS_SCHED)->birth)
+//		return (THIS_SCHED)->birth - now;
+//	/* never return 0 because this means sleep forever */
+//	return 1;
+//}
 
 static __rte_always_inline void
 _affinitize(void);
@@ -125,7 +124,7 @@ _affinitize(void)
 //	printf("lt %d\n", lt->thread_id);
 //	printf("core %d\n", THIS_SCHED->lcore_id);
 
-	DIAG_EVENT(lt, LT_DIAG_LTHREAD_SUSPENDED, 0, 0);
+//	DIAG_EVENT(lt, LT_DIAG_LTHREAD_SUSPENDED, 0, 0);
 	ctx_switch(&(THIS_SCHED)->ctx, &lt->ctx);
 }
 
@@ -137,7 +136,7 @@ _suspend(void)
 	struct lthread *lt = THIS_LTHREAD;
 
 	(THIS_SCHED)->nb_blocked_threads++;
-	DIAG_EVENT(lt, LT_DIAG_LTHREAD_SUSPENDED, 0, 0);
+//	DIAG_EVENT(lt, LT_DIAG_LTHREAD_SUSPENDED, 0, 0);
 	ctx_switch(&(THIS_SCHED)->ctx, &lt->ctx);
 	(THIS_SCHED)->nb_blocked_threads--;
 }
@@ -149,7 +148,7 @@ _reschedule(void)
 {
 	struct lthread *lt = THIS_LTHREAD;
 
-	DIAG_EVENT(lt, LT_DIAG_LTHREAD_RESCHEDULED, 0, 0);
+//	DIAG_EVENT(lt, LT_DIAG_LTHREAD_RESCHEDULED, 0, 0);
 	_ready_queue_insert(THIS_SCHED, lt);
 	ctx_switch(&(THIS_SCHED)->ctx, &lt->ctx);
 }

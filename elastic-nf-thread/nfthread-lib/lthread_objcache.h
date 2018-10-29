@@ -44,7 +44,6 @@ extern "C" {
 #include <rte_memory.h>
 
 #include "nf_lthread_int.h"
-#include "lthread_diag.h"
 #include "lthread_queue.h"
 
 
@@ -56,11 +55,11 @@ struct lthread_objcache {
 	int prealloc_size;
 	char name[LT_MAX_NAME_SIZE];
 
-	DIAG_COUNT_DEFINE(rd);
-	DIAG_COUNT_DEFINE(wr);
-	DIAG_COUNT_DEFINE(prealloc);
-	DIAG_COUNT_DEFINE(capacity);
-	DIAG_COUNT_DEFINE(available);
+//	DIAG_COUNT_DEFINE(rd);
+//	DIAG_COUNT_DEFINE(wr);
+//	DIAG_COUNT_DEFINE(prealloc);
+//	DIAG_COUNT_DEFINE(capacity);
+//	DIAG_COUNT_DEFINE(available);
 };
 
 /*
@@ -90,11 +89,11 @@ lthread_objcache *_lthread_objcache_create(const char *name,
 		strncpy(c->name, name, LT_MAX_NAME_SIZE);
 	c->name[sizeof(c->name)-1] = 0;
 
-	DIAG_COUNT_INIT(c, rd);
-	DIAG_COUNT_INIT(c, wr);
-	DIAG_COUNT_INIT(c, prealloc);
-	DIAG_COUNT_INIT(c, capacity);
-	DIAG_COUNT_INIT(c, available);
+//	DIAG_COUNT_INIT(c, rd);
+//	DIAG_COUNT_INIT(c, wr);
+//	DIAG_COUNT_INIT(c, prealloc);
+//	DIAG_COUNT_INIT(c, capacity);
+//	DIAG_COUNT_INIT(c, available);
 	return c;
 }
 
@@ -126,7 +125,7 @@ _lthread_objcache_alloc(struct lthread_objcache *c)
 	data = _lthread_queue_remove(q);
 
 	if (data == NULL) {
-		DIAG_COUNT_INC(c, prealloc);
+//		DIAG_COUNT_INC(c, prealloc);
 		for (i = 0; i < prealloc_size; i++) {
 			data =
 			    rte_zmalloc_socket(NULL, obj_size,
@@ -135,14 +134,14 @@ _lthread_objcache_alloc(struct lthread_objcache *c)
 			if (data == NULL)
 				return NULL;
 
-			DIAG_COUNT_INC(c, available);
-			DIAG_COUNT_INC(c, capacity);
+//			DIAG_COUNT_INC(c, available);
+//			DIAG_COUNT_INC(c, capacity);
 			_lthread_queue_insert_mp(q, data);
 		}
 		data = _lthread_queue_remove(q);
 	}
-	DIAG_COUNT_INC(c, rd);
-	DIAG_COUNT_DEC(c, available);
+//	DIAG_COUNT_INC(c, rd);
+//	DIAG_COUNT_DEC(c, available);
 	return data;
 }
 
@@ -153,8 +152,8 @@ _lthread_objcache_alloc(struct lthread_objcache *c)
 static inline void
 _lthread_objcache_free(struct lthread_objcache *c, void *obj) {
 
-	DIAG_COUNT_INC(c, wr);
-	DIAG_COUNT_INC(c, available);
+//	DIAG_COUNT_INC(c, wr);
+//	DIAG_COUNT_INC(c, available);
 	_lthread_queue_insert_mp(c->q, obj);
 
 }

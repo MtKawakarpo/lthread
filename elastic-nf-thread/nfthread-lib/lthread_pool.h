@@ -78,7 +78,6 @@ extern "C" {
 #include <rte_log.h>
 
 #include "nf_lthread_int.h"
-#include "lthread_diag.h"
 
 /*
  * This file implements pool of queue nodes used by the queue implemented
@@ -123,11 +122,11 @@ struct qnode_pool {
 	int pre_alloc;
 	char name[LT_MAX_NAME_SIZE];
 
-	DIAG_COUNT_DEFINE(rd);
-	DIAG_COUNT_DEFINE(wr);
-	DIAG_COUNT_DEFINE(available);
-	DIAG_COUNT_DEFINE(prealloc);
-	DIAG_COUNT_DEFINE(capacity);
+//	DIAG_COUNT_DEFINE(rd);
+//	DIAG_COUNT_DEFINE(wr);
+//	DIAG_COUNT_DEFINE(available);
+//	DIAG_COUNT_DEFINE(prealloc);
+//	DIAG_COUNT_DEFINE(capacity);
 } __rte_cache_aligned;
 
 /*
@@ -161,11 +160,11 @@ _qnode_pool_create(const char *name, int prealloc_size) {
 	p->head = p->stub;
 	p->pre_alloc = prealloc_size;
 
-	DIAG_COUNT_INIT(p, rd);
-	DIAG_COUNT_INIT(p, wr);
-	DIAG_COUNT_INIT(p, available);
-	DIAG_COUNT_INIT(p, prealloc);
-	DIAG_COUNT_INIT(p, capacity);
+//	DIAG_COUNT_INIT(p, rd);
+//	DIAG_COUNT_INIT(p, wr);
+//	DIAG_COUNT_INIT(p, available);
+//	DIAG_COUNT_INIT(p, prealloc);
+//	DIAG_COUNT_INIT(p, capacity);
 
 	return p;
 }
@@ -276,7 +275,7 @@ _qnode_alloc(void)
 	n = _qnode_pool_remove(p);
 
 	if (unlikely(n == NULL)) {
-		DIAG_COUNT_INC(p, prealloc);
+//		DIAG_COUNT_INC(p, prealloc);
 		for (i = 0; i < prealloc_size; i++) {
 			n = rte_malloc_socket(NULL,
 					sizeof(struct qnode),
@@ -285,8 +284,8 @@ _qnode_alloc(void)
 			if (n == NULL)
 				return NULL;
 
-			DIAG_COUNT_INC(p, available);
-			DIAG_COUNT_INC(p, capacity);
+//			DIAG_COUNT_INC(p, available);
+//			DIAG_COUNT_INC(p, capacity);
 
 			n->pool = p;
 			_qnode_pool_insert(p, n);
@@ -294,8 +293,8 @@ _qnode_alloc(void)
 		n = _qnode_pool_remove(p);
 	}
 	n->pool = p;
-	DIAG_COUNT_INC(p, rd);
-	DIAG_COUNT_DEC(p, available);
+//	DIAG_COUNT_INC(p, rd);
+//	DIAG_COUNT_DEC(p, available);
 	return n;
 }
 
@@ -312,8 +311,8 @@ _qnode_free(struct qnode *n)
 
 	if (unlikely(p->fast_alloc != NULL) ||
 			unlikely(n->pool != (THIS_SCHED)->qnode_pool)) {
-		DIAG_COUNT_INC(p, wr);
-		DIAG_COUNT_INC(p, available);
+//		DIAG_COUNT_INC(p, wr);
+//		DIAG_COUNT_INC(p, available);
 		_qnode_pool_insert(p, n);
 		return;
 	}

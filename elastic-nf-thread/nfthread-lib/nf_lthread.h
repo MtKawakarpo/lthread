@@ -69,7 +69,6 @@ extern "C" {
 #include <rte_per_lcore.h>
 
 #include "nf_lthread_api.h"
-#include "lthread_diag.h"
 
 struct lthread;
 struct lthread_sched;

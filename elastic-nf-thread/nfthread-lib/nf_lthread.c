@@ -81,10 +81,9 @@
 
 #include "nf_lthread_api.h"
 #include "nf_lthread.h"
-#include "lthread_timer.h"
+#include "nf_lthread_sched.h"
 #include "lthread_tls.h"
 #include "lthread_objcache.h"
-#include "lthread_diag.h"
 
 //static long long num_nf_threads = 0;
 
@@ -116,7 +115,7 @@ void _lthread_exit_handler(struct lthread *lt)
 void _lthread_free(struct lthread *lt)
 {
 
-	DIAG_EVENT(lt, LT_DIAG_LTHREAD_FREE, lt, 0);
+//	DIAG_EVENT(lt, LT_DIAG_LTHREAD_FREE, lt, 0);
 
 	/* invoke any user TLS destructor functions */
 	_lthread_tls_destroy(lt);
@@ -185,7 +184,7 @@ _lthread_init(struct lthread *lt,
 	lt->exit_handler = exit_handler;
 
 	/* set initial state */
-	lt->birth = _sched_now();
+//	lt->birth = _sched_now();
 	lt->state = BIT(ST_LT_INIT);
 	lt->join = LT_JOIN_INITIAL;
 
@@ -297,7 +296,7 @@ lthread_create(struct lthread **new_lt, int *lcore_id,
 	/* put it in the ready queue */
 	*new_lt = lt;
 
-	DIAG_CREATE_EVENT(lt, LT_DIAG_LTHREAD_CREATE);
+//	DIAG_CREATE_EVENT(lt, LT_DIAG_LTHREAD_CREATE);
 
 	rte_wmb();
 	_ready_queue_insert(_lthread_sched_get(*lcore_id), lt);
@@ -311,18 +310,18 @@ lthread_create(struct lthread **new_lt, int *lcore_id,
  * setting the lthread state to LT_ST_SLEEPING.
  * lthread state is cleared upon resumption or expiry.
  */
-static inline void _lthread_sched_sleep(struct lthread *lt, uint64_t nsecs)
-{
-	uint64_t state = lt->state;
-	uint64_t clks = _ns_to_clks(nsecs);
-
-	if (clks) {
-		_timer_start(lt, clks);
-		lt->state = state | BIT(ST_LT_SLEEPING);
-	}
-	DIAG_EVENT(lt, LT_DIAG_LTHREAD_SLEEP, clks, 0);
-	_suspend();
-}
+//static inline void _lthread_sched_sleep(struct lthread *lt, uint64_t nsecs)
+//{
+//	uint64_t state = lt->state;
+//	uint64_t clks = _ns_to_clks(nsecs);
+//
+//	if (clks) {
+//		_timer_start(lt, clks);
+//		lt->state = state | BIT(ST_LT_SLEEPING);
+//	}
+////	DIAG_EVENT(lt, LT_DIAG_LTHREAD_SLEEP, clks, 0);
+//	_suspend();
+//}
 
 /*
  * Cancels any running timer.
@@ -334,7 +333,7 @@ int _lthread_desched_sleep(struct lthread *lt)
 	uint64_t state = lt->state;
 
 	if (state & BIT(ST_LT_SLEEPING)) {
-		_timer_stop(lt);
+//		_timer_stop(lt);
 		state &= (CLEARBIT(ST_LT_SLEEPING) & CLEARBIT(ST_LT_EXPIRED));
 		lt->state = state | BIT(ST_LT_READY);
 		return 1;
@@ -396,7 +395,7 @@ int lthread_cancel(struct lthread *cancel_lt)
 	if ((cancel_lt == NULL) || (cancel_lt == THIS_LTHREAD))
 		return POSIX_ERRNO(EINVAL);
 
-	DIAG_EVENT(cancel_lt, LT_DIAG_LTHREAD_CANCEL, cancel_lt, 0);
+//	DIAG_EVENT(cancel_lt, LT_DIAG_LTHREAD_CANCEL, cancel_lt, 0);
 
 	if (cancel_lt->sched != THIS_SCHED) {
 
@@ -414,29 +413,29 @@ int lthread_cancel(struct lthread *cancel_lt)
 /*
  * Suspend the current lthread for specified time
  */
-void lthread_sleep(uint64_t nsecs)
-{
-	struct lthread *lt = THIS_LTHREAD;
-
-	_lthread_sched_sleep(lt, nsecs);
-
-}
+//void lthread_sleep(uint64_t nsecs)
+//{
+//	struct lthread *lt = THIS_LTHREAD;
+//
+//	_lthread_sched_sleep(lt, nsecs);
+//
+//}
 
 /*
  * Suspend the current lthread for specified time
  */
-void lthread_sleep_clks(uint64_t clks)
-{
-	struct lthread *lt = THIS_LTHREAD;
-	uint64_t state = lt->state;
-
-	if (clks) {
-		_timer_start(lt, clks);
-		lt->state = state | BIT(ST_LT_SLEEPING);
-	}
-	DIAG_EVENT(lt, LT_DIAG_LTHREAD_SLEEP, clks, 0);
-	_suspend();
-}
+//void lthread_sleep_clks(uint64_t clks)
+//{
+//	struct lthread *lt = THIS_LTHREAD;
+//	uint64_t state = lt->state;
+//
+//	if (clks) {
+//		_timer_start(lt, clks);
+//		lt->state = state | BIT(ST_LT_SLEEPING);
+//	}
+////	DIAG_EVENT(lt, LT_DIAG_LTHREAD_SLEEP, clks, 0);
+//	_suspend();
+//}
 
 /*
  * Requeue the current thread to the back of the ready queue
@@ -444,32 +443,18 @@ void lthread_sleep_clks(uint64_t clks)
 void lthread_yield(void)
 {
 	struct lthread *lt = THIS_LTHREAD;
-    uint8_t should_migrate = lt->should_migrate;
-//	struct lthread_sched *sched = THIS_SCHED;
+//    uint8_t should_migrate = lt->should_migrate;
 
-	DIAG_EVENT(lt, LT_DIAG_LTHREAD_YIELD, 0, 0);
-
-//	if(lt->thread_id == 6) {
-//        printf("lt %d see THIS_SCHED = %d\n", lt->thread_id, THIS_SCHED->lcore_id);
-//    }
-    if(should_migrate == 0) {
-//        if(lt->thread_id == 32) {
-//            printf("lt %d insert it to %d reay and switch to scheduler\n", lt->thread_id, THIS_SCHED->lcore_id);
-//        }
+//    if(should_migrate == 0) {
         _ready_queue_insert(THIS_SCHED, lt);
         ctx_switch(&(THIS_SCHED)->ctx, &lt->ctx);
-    }
-    else{
-        int dst_core = lt->should_migrate;
-        printf(">>>lt %d found it should migrate to core %d\n\n", lt->thread_id ,dst_core);
-        //FIXME:lt->should_migrate应该让scheduler还是线程自己置0?多个写者会不会有问题？
-        lt->should_migrate = 0;
-        lthread_set_affinity(lt, dst_core);
-    }
-
-//    if(lt->thread_id == 32) {
-//        printf("lt %d get control\n", lt->thread_id);
-//        printf("lt %d switch to core %d\n", lt->thread_id, THIS_SCHED->lcore_id);
+//    }
+//    else{
+//        int dst_core = lt->should_migrate;
+//        printf(">>>lt %d found it should migrate to core %d\n\n", lt->thread_id ,dst_core);
+//        FIXME:lt->should_migrate应该让scheduler还是线程自己置0?多个写者会不会有问题？
+//        lt->should_migrate = 0;
+//        lthread_set_affinity(lt, dst_core);
 //    }
 }
 
@@ -493,7 +478,7 @@ void lthread_exit(void *ptr)
 	    && rte_atomic64_cmpset(&lt->join, LT_JOIN_INITIAL,
 				   LT_JOIN_EXITING)) {
 
-		DIAG_EVENT(lt, LT_DIAG_LTHREAD_EXIT, 1, 0);
+//		DIAG_EVENT(lt, LT_DIAG_LTHREAD_EXIT, 1, 0);
 		_suspend();
 		/* set the exit value */
 		if ((ptr != NULL) && (lt->lt_join->lt_exit_ptr != NULL))
@@ -503,7 +488,7 @@ void lthread_exit(void *ptr)
 		lt->join = LT_JOIN_EXIT_VAL_SET;
 	} else {
 
-		DIAG_EVENT(lt, LT_DIAG_LTHREAD_EXIT, 0, 0);
+//		DIAG_EVENT(lt, LT_DIAG_LTHREAD_EXIT, 0, 0);
 		/* set the exit value */
 		if ((ptr != NULL) && (lt->lt_join->lt_exit_ptr != NULL))
 			*(lt->lt_join->lt_exit_ptr) = ptr;
@@ -551,10 +536,10 @@ int lthread_join(struct lthread *lt, void **ptr)
 	    && rte_atomic64_cmpset(&lt->join, LT_JOIN_INITIAL,
 				   LT_JOIN_THREAD_SET)) {
 
-		DIAG_EVENT(current, LT_DIAG_LTHREAD_JOIN, lt, 1);
+//		DIAG_EVENT(current, LT_DIAG_LTHREAD_JOIN, lt, 1);
 		_suspend();
 	} else {
-		DIAG_EVENT(current, LT_DIAG_LTHREAD_JOIN, lt, 0);
+//		DIAG_EVENT(current, LT_DIAG_LTHREAD_JOIN, lt, 0);
 		_ready_queue_insert(lt->sched, lt);
 	}
 
@@ -580,7 +565,7 @@ void lthread_detach(void)
 {
 	struct lthread *lt = THIS_LTHREAD;
 
-	DIAG_EVENT(lt, LT_DIAG_LTHREAD_DETACH, 0, 0);
+//	DIAG_EVENT(lt, LT_DIAG_LTHREAD_DETACH, 0, 0);
 
 	uint64_t state = lt->state;
 

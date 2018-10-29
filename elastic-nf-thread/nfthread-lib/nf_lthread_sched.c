@@ -31,11 +31,7 @@
 #include "nf_lthread_int.h"
 #include "nf_lthread_sched.h"
 #include "lthread_objcache.h"
-#include "lthread_timer.h"
-#include "lthread_mutex.h"
-#include "lthread_cond.h"
 #include "lthread_tls.h"
-#include "lthread_diag.h"
 
 /*
  * This file implements the lthread scheduler
@@ -67,9 +63,9 @@ static int migrate_to_core[MAX_CORE_NUM];
 
 struct lthread_sched *schedcore[LTHREAD_MAX_LCORES];
 
-diag_callback diag_cb;
+//diag_callback diag_cb;
 
-uint64_t diag_mask;
+//uint64_t diag_mask;
 
 
 /* constructor */
@@ -93,7 +89,7 @@ void lthread_sched_ctor(void)
 	rte_atomic16_init(&num_nf_threads);
 	rte_atomic16_set(&num_nf_threads, 0);
 
-	diag_cb = NULL;
+//	diag_cb = NULL;
 }
 
 
@@ -106,8 +102,8 @@ enum sched_alloc_phase {
 	SCHED_ALLOC_STACK_CACHE,
 	SCHED_ALLOC_PERLT_CACHE,
 	SCHED_ALLOC_TLS_CACHE,
-	SCHED_ALLOC_COND_CACHE,
-	SCHED_ALLOC_MUTEX_CACHE,
+//	SCHED_ALLOC_COND_CACHE,
+//	SCHED_ALLOC_MUTEX_CACHE,
 };
 
 static int
@@ -172,33 +168,33 @@ _lthread_sched_alloc_resources(struct lthread_sched *new_sched)
 			break;
 
 		/* Initialize per scheduler local free cond var cache */
-		alloc_status = SCHED_ALLOC_COND_CACHE;
-		new_sched->cond_cache =
-			_lthread_objcache_create("cond cache",
-						sizeof(struct lthread_cond),
-						LTHREAD_PREALLOC);
-		if (new_sched->cond_cache == NULL)
-			break;
+//		alloc_status = SCHED_ALLOC_COND_CACHE;
+//		new_sched->cond_cache =
+//			_lthread_objcache_create("cond cache",
+//						sizeof(struct lthread_cond),
+//						LTHREAD_PREALLOC);
+//		if (new_sched->cond_cache == NULL)
+//			break;
 
 		/* Initialize per scheduler local free mutex cache */
-		alloc_status = SCHED_ALLOC_MUTEX_CACHE;
-		new_sched->mutex_cache =
-			_lthread_objcache_create("mutex cache",
-						sizeof(struct lthread_mutex),
-						LTHREAD_PREALLOC);
-		if (new_sched->mutex_cache == NULL)
-			break;
+//		alloc_status = SCHED_ALLOC_MUTEX_CACHE;
+//		new_sched->mutex_cache =
+//			_lthread_objcache_create("mutex cache",
+//						sizeof(struct lthread_mutex),
+//						LTHREAD_PREALLOC);
+//		if (new_sched->mutex_cache == NULL)
+//			break;
 
 		alloc_status = SCHED_ALLOC_OK;
 	} while (0);
 
 	/* roll back on any failure */
 	switch (alloc_status) {
-	case SCHED_ALLOC_MUTEX_CACHE:
-		_lthread_objcache_destroy(new_sched->cond_cache);
+//	case SCHED_ALLOC_MUTEX_CACHE:
+//		_lthread_objcache_destroy(new_sched->cond_cache);
 		/* fall through */
-	case SCHED_ALLOC_COND_CACHE:
-		_lthread_objcache_destroy(new_sched->tls_cache);
+//	case SCHED_ALLOC_COND_CACHE:
+//		_lthread_objcache_destroy(new_sched->tls_cache);
 		/* fall through */
 	case SCHED_ALLOC_TLS_CACHE:
 		_lthread_objcache_destroy(new_sched->per_lthread_cache);
@@ -274,7 +270,7 @@ struct lthread_sched *_lthread_sched_create(size_t stack_size)
 
 	_lthread_key_pool_init();
 	new_sched->stack_size = stack_size;
-	new_sched->birth = rte_rdtsc();
+//	new_sched->birth = rte_rdtsc();
 	THIS_SCHED = new_sched;
 
 	status = _lthread_sched_alloc_resources(new_sched);
@@ -294,7 +290,7 @@ struct lthread_sched *_lthread_sched_create(size_t stack_size)
 
 	new_sched->run_flag = 1;
 
-	DIAG_EVENT(new_sched, LT_DIAG_SCHED_CREATE, rte_lcore_id(), 0);
+//	DIAG_EVENT(new_sched, LT_DIAG_SCHED_CREATE, rte_lcore_id(), 0);
 
 	rte_wmb();
 	return new_sched;
@@ -360,9 +356,9 @@ static inline void _lthread_resume(struct lthread *lt)
 	struct lthread_stack *s;
 	uint64_t state = lt->state;
 	int ret;
-#if LTHREAD_DIAG
-	int init = 0;
-#endif
+//#if LTHREAD_DIAG
+//	int init = 0;
+//#endif
 
 
 	sched->current_lthread = lt;
@@ -393,12 +389,12 @@ static inline void _lthread_resume(struct lthread *lt)
 		_lthread_tls_alloc(lt);
 
 		lt->state = BIT(ST_LT_READY);
-#if LTHREAD_DIAG
-		init = 1;
-#endif
+//#if LTHREAD_DIAG
+//		init = 1;
+//#endif
 	}
 
-	DIAG_EVENT(lt, LT_DIAG_LTHREAD_RESUMED, init, lt);
+//	DIAG_EVENT(lt, LT_DIAG_LTHREAD_RESUMED, init, lt);
 
 	/* switch to the new thread */
 //	if(lt->thread_id == 3)
@@ -440,9 +436,9 @@ _sched_timer_cb(struct rte_timer *tim, void *arg)
 	struct lthread *lt = (struct lthread *) arg;
 	uint64_t state = lt->state;
 
-	DIAG_EVENT(lt, LT_DIAG_LTHREAD_TMR_EXPIRED, &lt->tim, 0);
+//	DIAG_EVENT(lt, LT_DIAG_LTHREAD_TMR_EXPIRED, &lt->tim, 0);
 
-	rte_timer_stop(tim);
+//	rte_timer_stop(tim);
 
 	if (lt->state & BIT(ST_LT_CANCELLED))
 		(THIS_SCHED)->nb_blocked_threads--;
@@ -539,39 +535,39 @@ void slave_scheduler_run(void){
 	while (!_lthread_sched_isdone(sched)) {
 
 //		rte_timer_manage();
-		cnt++;
+//		cnt++;
 
 		lt = _lthread_queue_poll(sched->ready);
 		if (lt != NULL) {
 			//check whether to clean threads
-			if(cnt % check_dv_iteration == 0){
-				migrate = rte_atomic16_read(&migrate_flag[lcore_id]);
-				if( migrate > 1){
-					dst_lcore = migrate_to_core[lcore_id];
-					printf("thread %d on core %d recv give back msg\n", lt->thread_id, lcore_id);
-					do{
-						lt->should_migrate = dst_lcore;
-						_lthread_resume(lt);
-						lt = _lthread_queue_poll(sched->ready);
-					}while (lt != NULL);
-					lt = _lthread_queue_poll(sched->pready);
-					while(lt != NULL){
-						lt->should_migrate = dst_lcore;
-						_lthread_resume(lt);
-						lt = _lthread_queue_poll(sched->pready);
-					}
-					rte_atomic16_set(&migrate_flag[lcore_id], 0);
-					printf("sched on core %d finish migrating all threads to core %d\n", lcore_id, dst_lcore);
-					continue;
-				}else if(migrate == 1){
-					printf("thread %d on core %d recv migrate msg, to core %d\n", lt->thread_id, lcore_id, dst_lcore);
-					dst_lcore = migrate_to_core[lcore_id];
-					lt->should_migrate = dst_lcore;
-					migrate_to_core[lcore_id] = lt->thread_id;//replay migrated lthread id
-					rte_atomic16_set(&migrate_flag[lcore_id], 0);
-				}
-			}
-			cnt%=1000000;
+//			if(cnt % check_dv_iteration == 0){
+//				migrate = rte_atomic16_read(&migrate_flag[lcore_id]);
+//				if( migrate > 1){
+//					dst_lcore = migrate_to_core[lcore_id];
+//					printf("thread %d on core %d recv give back msg\n", lt->thread_id, lcore_id);
+//					do{
+//						lt->should_migrate = dst_lcore;
+//						_lthread_resume(lt);
+//						lt = _lthread_queue_poll(sched->ready);
+//					}while (lt != NULL);
+//					lt = _lthread_queue_poll(sched->pready);
+//					while(lt != NULL){
+//						lt->should_migrate = dst_lcore;
+//						_lthread_resume(lt);
+//						lt = _lthread_queue_poll(sched->pready);
+//					}
+//					rte_atomic16_set(&migrate_flag[lcore_id], 0);
+//					printf("sched on core %d finish migrating all threads to core %d\n", lcore_id, dst_lcore);
+//					continue;
+//				}else if(migrate == 1){
+//					printf("thread %d on core %d recv migrate msg, to core %d\n", lt->thread_id, lcore_id, dst_lcore);
+//					dst_lcore = migrate_to_core[lcore_id];
+//					lt->should_migrate = dst_lcore;
+//					migrate_to_core[lcore_id] = lt->thread_id;//replay migrated lthread id
+//					rte_atomic16_set(&migrate_flag[lcore_id], 0);
+//				}
+//			}
+//			cnt%=1000000;
 			_lthread_resume(lt);
 		}
 
@@ -622,7 +618,7 @@ int lthread_set_affinity(struct lthread *lt, unsigned lcoreid)
 		return POSIX_ERRNO(EINVAL);
 
 
-	DIAG_EVENT(lt, LT_DIAG_LTHREAD_AFFINITY, lcoreid, 0);
+//	DIAG_EVENT(lt, LT_DIAG_LTHREAD_AFFINITY, lcoreid, 0);
 
 //	printf("callee set_affinity\n");
 	dest_sched = schedcore[lcoreid];
