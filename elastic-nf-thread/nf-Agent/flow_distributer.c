@@ -97,12 +97,13 @@ void flow_table_init() {
         if (flow_table->entries[i] == NULL)
             rte_exit(EXIT_FAILURE, "Cannot allocate memory for flows\n");
     }
-
-
-    printf("-------- Init flow table successfully! --------\n");
     flow_table->nb_entries = 0;
+    txconf_count = 0;
     rte_atomic16_init(&is_rx_configged);
     rte_atomic16_set(&is_rx_configged, 0);
+
+    printf("-------- Init flow table successfully! --------\n");
+
 }
 
 // TODO: 后面按dpdk的hash改，这里先做简化
@@ -172,10 +173,9 @@ int flow_director_rx_thread(struct port_info *args) {
             cur_stats[i].dropped_pkts = 0;
         }
         rte_atomic16_set(&is_rx_configged, 1);
+        printf("RX monitor 初始化成功\n");
+
     }
-
-    printf("RX monitor 初始化成功\n");
-
 
     reset_stats = 0;
 
@@ -218,14 +218,12 @@ int flow_director_rx_thread(struct port_info *args) {
 //            if (_udp_hdr == NULL) {
 //                printf("An invalid udp header!\n");
 //            }
-//
-//            printf(" UDP port %d\n", _ipv4_hdr->src_addr);
-//
+
             tmp_flow = flow_table_get_flow(_ipv4_hdr->src_addr);
 
             if (tmp_flow == NULL) {
 
-                printf(" new flow %d\n", _ipv4_hdr->src_addr);
+//                printf(" new flow %d\n", _ipv4_hdr->src_addr);
 
                 garbage_mbufs[garbage_count] = pkts[i];
                 garbage_count++;
@@ -322,22 +320,31 @@ int flow_director_tx_thread(struct port_info *args) {
 
     uint32_t i, deq_nb;
     int ret;
+    int start_flow, end_flow, flow_per_tx;
     struct rte_mbuf *pkts[MAX_PKTS_BURST_RX];
 
     uint8_t port_id = args->port_id;
     uint16_t queue_id = args->queue_id;
+    int thread_id = args->thread_id;
+    int nb_ports = args->nb_ports;
+    flow_per_tx = txconf_count/nb_ports;
+    printf(">>>tx thread %d read txconf_cnt=%d\n", thread_id, txconf_count);
 
-    txconf_count = 0;
-    for (i = 0; i < MAX_NF_NB; ++i)
-        nf_txconf_mapping[i] = NULL;
+    if(flow_per_tx == 0)
+        flow_per_tx = 1;
+    start_flow = 0+thread_id * flow_per_tx;
+    end_flow = flow_per_tx * (thread_id+1);
+    if(thread_id == nb_ports-1){
+        end_flow = txconf_count;
+    }
 
-    RTE_LOG(INFO, ELASTICTHREAD, "%s() started on lcore %u and tx packets on port %u with queue_id %u \n", __func__,
-            rte_lcore_id(), port_id, queue_id);
+    RTE_LOG(INFO, ELASTICTHREAD, "%s() %d started on lcore %u and tx on port (%u, %u), serve for nf %d - nf %d \n", __func__, thread_id,
+            rte_lcore_id(), port_id, queue_id, start_flow, end_flow);
 
     while (1) {
 
         // 轮询所有的nf_txring
-        for (i = 0; i < txconf_count; ++i) {  // 每个 tx director负责一部分
+        for (i = start_flow; i < end_flow; ++i) {  // 每个 tx director负责一部分
             if (nf_txconf_mapping[i] == NULL)
                 continue;
             if (nf_txconf_mapping[i]->out_port != port_id)
@@ -348,7 +355,7 @@ int flow_director_tx_thread(struct port_info *args) {
             if (unlikely(deq_nb == 0))
                 continue;
 
-//            printf("tx recv nf %d with %d pkts\n", nf_txconf_mapping[i]->nf_id, deq_nb);
+//            printf("tx %d recv nf %d with %d pkts\n",thread_id, nf_txconf_mapping[i]->nf_id, deq_nb);
             ret = rte_eth_tx_burst(nf_txconf_mapping[i]->out_port, queue_id, pkts, deq_nb);
             if (unlikely(ret < deq_nb)) {
                 pktmbuf_free_bulk(&pkts[ret], deq_nb - ret);

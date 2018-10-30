@@ -15,6 +15,8 @@
 struct port_info{
     uint8_t port_id;
     uint8_t queue_id;
+    int thread_id;
+    int nb_ports;
 };
 
 struct flow {
