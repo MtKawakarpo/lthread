@@ -27,19 +27,13 @@
 #include "nfs/includes/aes_encrypt.h"
 #include "nfs/includes/aes_decrypt.h"
 
-//#include "nf_common.h"
-//#include "simple_forward.h"
-//#include "firewall.h"
-//#include "aes_encrypt.h"
-//#include "aes_decrypt.h"
-
 #define RX_RING_SIZE 512
 #define TX_RING_SIZE 512
 #define NUM_MBUFS 8192 * 128 / 2
 #define MBUF_SIZE (1600 + sizeof(struct rte_mbuf) + RTE_PKTMBUF_HEADROOM)
 #define MBUF_CACHE_SIZE 0
 #define NO_FLAGS 0
-#define RING_MAX 5  // 1个ring
+#define RING_MAX 2  // 1个ring
 
 #define NUM_PORTS 1
 #define MAX_NUM_PORT 4
@@ -53,32 +47,31 @@
 
 /* configuartion */
 
-#define SFC_CHAIN_LEN 3 //FIXME: 限定SFC长度为3
-#define MONITOR_PERIOD 30  // 3秒钟更新 一次 monitor的信息
+#define SFC_CHAIN_LEN 6 //FIXME: 限定SFC长度为3
+#define MONITOR_PERIOD 10  // 3秒钟更新 一次 monitor的信息
 
-uint16_t nb_nfs = 15; //修改时必须更新nf_func_config, service_time_config, priority_config, start_sfc_config, flow_ip_table
-uint16_t nb_agents = 1;//修改时必须更新coremask_set
-int rx_exclusive_lcore[RING_MAX] = {2, 4, 6, 8, 10};//server 39
-//int rx_exclusive_lcore[RING_MAX] = {1,2,3,4,5};//server 33
+uint16_t nb_nfs = 12; //修改时必须更新nf_func_config, service_time_config, priority_config, start_sfc_config, flow_ip_table
+uint16_t nb_agents = 3;//修改时必须更新coremask_set
+int rx_exclusive_lcore[RING_MAX] = {2,4};//server 39
 // 根据不同机器来制定, 0预留给core manager
-int tx_exclusive_lcore[RING_MAX] = {12, 14, 16, 18, 20};//server 39
-//int tx_exclusive_lcore[RING_MAX] = {6,7,8,9,10};//server 33
-static const int dv_tolerance = 0;//NF丢包率超过这个阈值才进行扩展处理
+int tx_exclusive_lcore[RING_MAX] = {6,8};//server 39
+static const int dv_tolerance = 500;//NF丢包率超过这个阈值才进行扩展处理
 static const int mini_sertime_per_core = 1;//core的total service time低于这个阈值则被认定空闲，应该回收
-lthread_func_t nf_fnuc_config[MAX_NF_NUM]={lthread_forwarder, lthread_forwarder, lthread_forwarder, lthread_forwarder,
-                                           lthread_forwarder, lthread_forwarder, lthread_forwarder, lthread_forwarder,
-                                           lthread_forwarder, lthread_forwarder, lthread_forwarder, lthread_forwarder,
-                                           lthread_forwarder, lthread_forwarder, lthread_forwarder, lthread_forwarder,
-                                           lthread_forwarder, lthread_forwarder, lthread_forwarder, lthread_forwarder,
-                                           lthread_forwarder, lthread_forwarder, lthread_forwarder, lthread_forwarder,
-                                           lthread_forwarder, lthread_forwarder, lthread_forwarder, lthread_forwarder,
-                                           lthread_forwarder, lthread_forwarder, lthread_forwarder, lthread_forwarder,
-                                           lthread_forwarder, lthread_forwarder, lthread_forwarder, lthread_forwarder,};//NF函数，在nfs头文件里面定义
+static const int middle_load_level = 3;
+lthread_func_t nf_fnuc_config[MAX_NF_NUM]={lthread_aes_encryt, lthread_aes_encryt, lthread_aes_encryt, lthread_aes_encryt,
+                                           lthread_aes_encryt, lthread_aes_encryt, lthread_aes_encryt, lthread_aes_encryt,
+                                           lthread_aes_encryt, lthread_aes_encryt, lthread_aes_encryt, lthread_aes_encryt,
+                                           lthread_aes_encryt, lthread_aes_encryt, lthread_aes_encryt, lthread_aes_encryt,
+                                           lthread_aes_encryt, lthread_aes_encryt, lthread_aes_encryt, lthread_aes_encryt,
+                                           lthread_aes_encryt, lthread_aes_encryt, lthread_aes_encryt, lthread_aes_encryt,
+                                           lthread_aes_encryt, lthread_aes_encryt, lthread_aes_encryt, lthread_aes_encryt,
+                                           lthread_aes_encryt, lthread_aes_encryt, lthread_aes_encryt, lthread_aes_encryt,
+                                           lthread_aes_encryt, lthread_aes_encryt, lthread_aes_encryt, lthread_aes_encryt,};//NF函数，在nfs头文件里面定义
 int nf_service_time_config[MAX_NF_NUM] = {1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
                                           1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
                                           1, 1, 1, 1, 1, 1, 1, 1, 1, 1};
-int nf_priority_config[MAX_NF_NUM]={0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                                    0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+int nf_priority_config[MAX_NF_NUM]={0, 0, 1, 1, 1, 1, 1, 1,
+                                    2, 2, 2, 2, 0, 0, 0, 0, 0, 0,
                                     0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
 int start_sfc_config_flag[MAX_NF_NUM]={0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
                                        0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
@@ -105,7 +98,8 @@ int nf_tx_port[MAX_NF_NUM] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
  * piority 0: core 6,8,10,(0x540)
  * p1:12,14(0x5000), p2:16(0x10000)  p3:18,20(0x140000)*/
 uint64_t coremask_set[MAX_AGENT_NUM]={
-        0x40000001, 0x500002, 0x1000001, 0x14000002};
+//        0x140002, 0x500002, 0x1000001, 0x14000002};//10,12
+        0x140002, 0x15400004, 0x40000001, 0x14000002};
 //        0x554005, 0x500002, 0x1000001, 0x14000002};
 
 struct Agent_info{
@@ -327,18 +321,18 @@ int reply_to_Agent_request(int agent_id, int lcore_id){
     int without_wait = 0;
     dst_core = last_idle_core[agent_id];
 
-    if(cores_info_data[dst_core].drop_rate >= dv_tolerance){//在Agent内再找一个空闲核
+    if(dst_core>0 && cores_info_data[dst_core].service_time_total >= middle_load_level){//在Agent内再找一个空闲核
         core_cnt = (agents_info_data[agent_id].core_cnt);
         dst_core = -1;
         for(i = 0;i< core_cnt; i++){
-            if(cores_info_data[i].drop_rate < dv_tolerance){
+            if(cores_info_data[i].service_time_total < middle_load_level){
                 dst_core = i;
             }
         }
     }//end
 //    printf(">>inner Agent, last idle core = %d\n", dst_core);
 
-    if(dst_core < 0){
+    if(dst_core < 0 && nb_agents>1){
         //select a victim from other Agents
         uint8_t first_visit = 0;
         int victim_low_priority = -1;
@@ -383,6 +377,9 @@ int reply_to_Agent_request(int agent_id, int lcore_id){
         dec_core_from_set(cores_info_data[dst_core].agent_id, dst_core);
 
     }
+//    if(dst_core<0&&nb_agents==1){
+//        dst_core = 12;//FIXME: 为了快速测试
+//    }
     if(dst_core<0)
         return -1;
 
@@ -392,7 +389,9 @@ int reply_to_Agent_request(int agent_id, int lcore_id){
     set_migrate_flag(1, lcore_id);
     while(read_migrate_flag(lcore_id)>0){
         rte_delay_ms(1);
+//        printf("wait..");
     }
+    printf("\n");
     nf_id = read_migrate_to_core(lcore_id) - nb_lcores;//返回的NF thread_id
     printf(">CM recv msg from core %d, migrated nf %d\n\n", lcore_id, nf_id);
     cores_info_data[dst_core].nf_total += 1;
@@ -405,7 +404,7 @@ int reply_to_Agent_request(int agent_id, int lcore_id){
 /*
  * main loop of core manager
  */
-
+int scale_recent[MAX_LCORE_NUM]={0};
 static int
 lthread_master_spawner(__rte_unused void *arg) {
 
@@ -420,15 +419,18 @@ lthread_master_spawner(__rte_unused void *arg) {
     for(i = 0;i<MAX_AGENT_NUM;i++){
         index_of_agent[i] = 0;
     }
+    rte_delay_ms(4000);
 
     for(i = 0;i<nb_nfs; i++){
         sfc_flag = start_sfc_config_flag[i];
         agent_id = nfs_info_data[i].agent_id;
         if(sfc_flag == 1){
             lcore_id = agents_info_data[agent_id].core_list[index_of_agent[agent_id]];
-            printf("dispatch sfc: nf %d-> nf %d-> nf %d on core %d of Agent %d\n", i, i+1, i+2, lcore_id, agent_id);
-            launch_sfc(lt, &lcore_id, SFC_CHAIN_LEN, nfs_info_data[i].fun, (void *)nf[i],
-                             nfs_info_data[i+1].fun, (void *)nf[i+1], nfs_info_data[i+2].fun, (void *)nf[i+2]);
+            printf("CHAINEN=%d, dispatch sfc: nf %d-> nf %d-> nf %d ...on core %d of Agent %d\n", SFC_CHAIN_LEN, i, i+1, i+2, i+3,i+5,i+6,
+                   lcore_id, agent_id);
+            launch_sfc(lt, &lcore_id, SFC_CHAIN_LEN, nfs_info_data[i].fun, (void *)nf[i], nfs_info_data[i+1].fun, (void *)nf[i+1],
+                       nfs_info_data[i+2].fun, (void *)nf[i+2], nfs_info_data[i+3].fun, (void *)nf[i+3], nfs_info_data[i+4].fun, (void *)nf[i+4],
+                       nfs_info_data[i+5].fun, (void *)nf[i+5]);
             cores_info_data[lcore_id].nf_total += SFC_CHAIN_LEN;
             nfs_info_data[i].lcore_id = lcore_id;
             int k= 0;
@@ -439,8 +441,8 @@ lthread_master_spawner(__rte_unused void *arg) {
             i-=1;
         }else{
             //add for test, 测试多个NF共享一个core
-            if(agent_id == 0)
-                index_of_agent[agent_id] = 0;
+//            if(agent_id == 0)
+//                index_of_agent[agent_id] = 0;
             lcore_id = agents_info_data[agent_id].core_list[index_of_agent[agent_id]];
             cores_info_data[lcore_id].nf_total += 1;
             cores_info_data[lcore_id].service_time_total += nfs_info_data[i].service_time;
@@ -459,55 +461,68 @@ lthread_master_spawner(__rte_unused void *arg) {
     uint64_t cnt = 0;
     int dst_core;
     int ret, core_id;
+
+    //for test
+    int scale_once = 0;
+    struct timespec time_start={0, 0},time_end={0, 0};
     while (keep_running){
 
         rte_delay_ms(1000);
-//        continue;//don't scale
-//        printf("CM do scaling\n");
-        //update需要更新: agent.core_mask, core_list,  core.nf_cnt, core service time
-//        for(core_id = 0; core_id< MAX_LCORE_NUM; core_id++){
-//            if(cores_info_data[core_id].nf_total == 0)
-//                continue;
-//            cores_info_data[core_id].drop_rate = 0;
+
+        monitor_tick++;
+//        if (monitor_tick == MONITOR_PERIOD) {
+                monitor_update(3);
+//                monitor_tick = 0;
+
 //        }
-//        for(nf_id = 0;nf_id<nb_nfs; nf_id++){
-//            if(nfs_info_data[nf_id].belong_to_sfc == 1){
-//                continue;//TODO: 默认不迁移、不扩展SFC
-//            }else{
-//                cnt++;
-//                processed_pps = get_processed_pps_with_nf_id(nf_id);  // nf 0 的处理能力
-//                dropped_pps = get_dropped_pps_with_nf_id(nf_id); // nf 0 每秒丢包数
-//                dropped_ratio = get_dropped_ratio_with_nf_id(nf_id); // nf 0 这段时间的丢包率
+//            for(i = 0;i<MAX_LCORE_NUM;i++) {
+//                if(cores_info_data[core_id].nf_total == 0)
+//                    continue;
+//                scale_recent[i] = 0;
+//                cores_info_data[core_id].drop_rate = 0;
+//            }
+////            检测扩展
+//            for(nf_id = 0;nf_id<nb_nfs; nf_id++){
+////                //FIXME:add for test
+//                if(scale_once == 1 || nfs_info_data[nf_id].agent_id!=0)
+//                    continue;
+//                if(nfs_info_data[nf_id].belong_to_sfc == 1){
+//                    continue;//TODO: 默认不迁移、不扩展SFC
+//                }else{
 //
-//                if(dropped_pps > 0){
-//                    printf(">>> NF %d <<< processing pps: %9ld, drop pps: %9ld, drop ratio: %9lf\n", nf_id, processed_pps,
-//                           dropped_pps, dropped_ratio);
-//                    printf(">processing nf %d on core %d in Agent %d\n", nf_id,nfs_info_data[nf_id].lcore_id, nfs_info_data[nf_id].agent_id);
-//                    //scaling
-//                    ret = reply_to_Agent_request((nfs_info_data[nf_id].agent_id), nfs_info_data[nf_id].lcore_id);
-//                    if(ret <0){
-//                        printf("no available resouce to add\n");
+//                    processed_pps = get_processed_pps_with_nf_id(nf_id);  // nf 0 的处理能力
+//                    dropped_pps = get_dropped_pps_with_nf_id(nf_id); // nf 0 每秒丢包数
+//                    dropped_ratio = get_dropped_ratio_with_nf_id(nf_id); // nf 0 这段时间的丢包率
+//
+//                    if(dropped_pps > dv_tolerance){
+//                        clock_gettime(CLOCK_REALTIME, &time_start);
+//
+//                        printf("\n\n\nTIME %9lu.%9lu >>> NF %d <<< processing pps: %9ld, drop pps: %9ld, drop ratio: %9lf\n\n\n\n",
+//                               time_start.tv_sec, time_start.tv_nsec, nf_id, processed_pps, dropped_pps, dropped_ratio);
+//                        printf(">processing nf %d on core %d in Agent %d\n", nf_id,nfs_info_data[nf_id].lcore_id, nfs_info_data[nf_id].agent_id);
+//                        //scaling
+//                        ret = reply_to_Agent_request((nfs_info_data[nf_id].agent_id), nfs_info_data[nf_id].lcore_id);
+//                        monitor_update(3);
+//                        scale_once = 1;
+//                        if(ret <0){
+//                            printf("no available resouce to add\n");
+//                            cores_info_data[nfs_info_data[nf_id].lcore_id].drop_rate += dropped_pps;//TODO: core的丢包率貌似没有用？
+//                        }
+//                        break;
 //                    }
-//                    cores_info_data[nfs_info_data[nf_id].lcore_id].drop_rate += dropped_pps;
 //                }
 //            }
-//        }
 
-//         在这里算nf丢包信息
-        monitor_tick++;
-        if (monitor_tick == MONITOR_PERIOD) {
-            monitor_update(3);
-            monitor_tick = 0;
-        }
         for(nf_id = 0;nf_id<nb_nfs; nf_id++){
-
-//            cnt++;
+            clock_gettime(CLOCK_REALTIME, &time_start);
             processed_pps = get_processed_pps_with_nf_id(nf_id);  // nf 0 的处理能力
             dropped_pps = get_dropped_pps_with_nf_id(nf_id); // nf 0 每秒丢包数
             dropped_ratio = get_dropped_ratio_with_nf_id(nf_id); // nf 0 这段时间的丢包率
-            printf(">>> NF %d <<< processing pps: %9ld, drop pps: %9ld, drop ratio: %9lf\n", nf_id, processed_pps,
-                           dropped_pps, dropped_ratio);
+//            if(scale_once == 1){
+                printf("TIME: %9lu.%9lu >>> NF %d <<< processing pps: %9ld, drop pps: %9ld, drop ratio: %9lf\n",
+                       time_start.tv_sec, time_start.tv_nsec, nf_id, processed_pps, dropped_pps, dropped_ratio);
 //                }
+//            }
         }
     }
 
@@ -606,6 +621,7 @@ int main(int argc, char *argv[]) {
     int index = 0, lc=0;
     int start_sfc = 0;
 
+
     for(i = 0;i<nb_agents;i++){
         agents_info_data[i].Agent_id = 1000+i;
         agents_info_data[i].nfs_num = 0;
@@ -615,7 +631,7 @@ int main(int argc, char *argv[]) {
     for(i = 0;i<nb_nfs;i++){
         rq_name = get_nf_rq_name(i);
         tq_name = get_nf_tq_name(i);
-        nfs_info_data[i].rx_q = rte_ring_create(rq_name, NF_QUEUE_RING_SIZE, socket_id, RING_F_SP_ENQ);
+        nfs_info_data[i].rx_q = rte_ring_create(rq_name, NF_QUEUE_RING_SIZE, socket_id, RING_F_SC_DEQ);
         nfs_info_data[i].tx_q = rte_ring_create(tq_name, NF_QUEUE_RING_SIZE, socket_id, RING_F_SP_ENQ);
         if(nfs_info_data[i].rx_q == NULL || nfs_info_data[i].tx_q == NULL){
             rte_exit(EXIT_FAILURE, "cannot create ring for nf %d\n", i);
@@ -641,6 +657,23 @@ int main(int argc, char *argv[]) {
                 printf("register nf %d tx ring\n", i-1);
                 nf_need_output(i, nf_tx_port[i-1], nfs_info_data[i-1].tx_q);  // 参数为 nf_id, 要往哪个port 上 发数据, nf_id 对应的tx_ring
             }
+            //FIXME:add for test, to be deleted
+//            if(i == 0){
+//                printf(">>>add flow entry %d-->nf %d\n", flow_ip_table[nb_nfs], i);
+//                flow_table_add_entry(flow_ip_table[nb_nfs], i); // flow hash (这里使用的是flow的源IP值), nf_id
+//                printf(">>>add flow entry %d-->nf %d\n", flow_ip_table[nb_nfs+1], i);
+//                flow_table_add_entry(flow_ip_table[nb_nfs+1], i); // flow hash (这里使用的是flow的源IP值), nf_id
+//                printf(">>>add flow entry %d-->nf %d\n", flow_ip_table[nb_nfs+2], i);
+//                flow_table_add_entry(flow_ip_table[nb_nfs+2], i); // flow hash (这里使用的是flow的源IP值), nf_id
+//            } else if(i == 1){
+//                printf(">>>add flow entry %d-->nf %d\n", flow_ip_table[nb_nfs+3], i);
+//                flow_table_add_entry(flow_ip_table[nb_nfs+3], i); // flow hash (这里使用的是flow的源IP值), nf_id
+//                printf(">>>add flow entry %d-->nf %d\n", flow_ip_table[nb_nfs+4], i);
+//                flow_table_add_entry(flow_ip_table[nb_nfs+4], i); // flow hash (这里使用的是flow的源IP值), nf_id
+//            } else if(i == 2){
+//                printf(">>>add flow entry %d-->nf %d\n", flow_ip_table[nb_nfs+5], i);
+//                flow_table_add_entry(flow_ip_table[nb_nfs+5], i); // flow hash (这里使用的是flow的源IP值), nf_id
+//            }
         }else{
             if(start_sfc == 0){
                 start_sfc = 1;//first nf of sfc
@@ -708,6 +741,15 @@ int main(int argc, char *argv[]) {
             }
         }
     }
+//    cur_lcore = agents_info_data[0].core_list[0];
+//    for(i = 0;i<6;i++){//FIXME: 为了测试简单，一次性启动~core 12
+//        if (rte_eal_remote_launch(sched_spawner, NULL, cur_lcore) == -EBUSY) {
+//            printf("Core %d is already busy, can't use for sched\n", cur_lcore);
+//            return -1;
+//        }
+//        cur_lcore += 2;
+//        nb_lcores+=1;
+//    }
 
     /* main loop of CM */
     lthread_master_spawner(NULL);

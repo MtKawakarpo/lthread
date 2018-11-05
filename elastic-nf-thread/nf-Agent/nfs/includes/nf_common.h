@@ -46,7 +46,7 @@ struct nf_info{
     int agent_id;
     int priority;
     int service_time;
-    uint16_t lcore_id;
+    uint32_t lcore_id;
     struct nf_statistics *state;
 };
 struct nf_thread_info{

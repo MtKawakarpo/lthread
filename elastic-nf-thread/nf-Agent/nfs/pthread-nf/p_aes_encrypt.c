@@ -2,6 +2,7 @@
 #include "../includes/aes_encrypt.h"
 #include "../includes/nf_common.h"
 
+
 int
 pthread_aes_encryt(void *dumy){
 
@@ -20,14 +21,17 @@ pthread_aes_encryt(void *dumy){
     printf("Core %d: Running NF thread %d\n", rte_lcore_id(), nf_id);
     nf_aes_encrypt_init(statistics);
     printf("finish init aes encryt\n");
+    uint64_t start, end, cycle;
 
     while (1){
 
         nb_rx = rte_ring_sc_dequeue_bulk(rq, pkts, BURST_SIZE, NULL);
         if (unlikely(nb_rx > 0)) {
-
+//            start = rdtsc();
             nf_aes_encrypt_handler(pkts, nb_rx, statistics);
-//            printf("aes encrypt %d suc transfer %d pkts\n", nf_id, nb_tx);
+//            end = rdtsc();
+//            cycle = end - start;
+//            printf("cycle: %d\n", cycle);
             nb_tx = rte_ring_enqueue_burst(tq, pkts, nb_rx, NULL);
 
             if (unlikely(nb_tx < nb_rx)) {
@@ -38,6 +42,8 @@ pthread_aes_encryt(void *dumy){
                     rte_pktmbuf_free(m);
                 }
             }
+
+
         }
         sched_yield();
 

@@ -273,6 +273,7 @@ lthread_create(struct lthread **new_lt, int *lcore_id,
 		printf("lcore exceed bound\n");
 		return POSIX_ERRNO(EINVAL);
 	}
+	printf("lcore = %d\n", *lcore_id);
 
 	struct lthread *lt = NULL;
 	int tid = rte_atomic16_read(&num_nf_threads);
@@ -298,6 +299,7 @@ lthread_create(struct lthread **new_lt, int *lcore_id,
 
 	/* set the function args and exit handlder */
 	_lthread_init(lt, fun, arg, _lthread_exit_handler, tid);
+	printf("finish init lthread\n");
 
 	/* put it in the ready queue */
 	*new_lt = lt;
@@ -449,19 +451,19 @@ int lthread_cancel(struct lthread *cancel_lt)
 void lthread_yield(void)
 {
 	struct lthread *lt = THIS_LTHREAD;
-//    uint8_t should_migrate = lt->should_migrate;
+    uint8_t should_migrate = lt->should_migrate;
 
-//    if(should_migrate == 0) {
+    if(should_migrate == 0) {
         _ready_queue_insert(THIS_SCHED, lt);
         ctx_switch(&(THIS_SCHED)->ctx, &lt->ctx);
-//    }
-//    else{
-//        int dst_core = lt->should_migrate;
+    }
+    else{
+        int dst_core = lt->should_migrate;
 //        printf(">>>lt %d found it should migrate to core %d\n\n", lt->thread_id ,dst_core);
 //        FIXME:lt->should_migrate应该让scheduler还是线程自己置0?多个写者会不会有问题？
-//        lt->should_migrate = 0;
-//        lthread_set_affinity(lt, dst_core);
-//    }
+        lt->should_migrate = 0;
+        lthread_set_affinity(lt, dst_core);
+    }
 }
 
 /*

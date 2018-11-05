@@ -233,7 +233,7 @@ int flow_director_rx_thread(struct port_info *args) {
 
             nf_id = tmp_flow->nf_id;
 
-//            printf("nf id: %d\n", nf_id);
+//            printf("flow %d -> nf id: %d\n", _ipv4_hdr->src_addr,  nf_id);
 
             struct rte_ring * nf_rx_ring = nf_rxring_mapping[nf_id];
             if (nf_rx_ring == NULL) {
@@ -243,7 +243,8 @@ int flow_director_rx_thread(struct port_info *args) {
                 continue;
             }
 
-            ret = rte_ring_sp_enqueue(nf_rx_ring, (void *)pkts[i]);
+//            ret = rte_ring_sp_enqueue(nf_rx_ring, (void *)pkts[i]);
+            ret = rte_ring_enqueue(nf_rx_ring, (void *)pkts[i]);
 //            if (worker_id != 0 && worker_id != 1)
 //                ret = 1;
             if (unlikely(ret != 0)) {

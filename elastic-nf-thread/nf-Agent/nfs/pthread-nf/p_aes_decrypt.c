@@ -19,13 +19,14 @@ pthread_aes_decryt(void *dumy){
 
     printf("Core %d: Running NF thread %d\n", rte_lcore_id(), nf_id);
     nf_aes_decrypt_init(statistics);
-    printf("finish init aes encryt\n");
+    printf("finish init aes decryt\n");
+//    uint64_t start, end, cycle;
 
     while (1){
 
         nb_rx = rte_ring_sc_dequeue_bulk(rq, pkts, BURST_SIZE, NULL);
         if (unlikely(nb_rx > 0)) {
-
+//            start = rdtsc();
             nf_aes_decrypt_handler(pkts, nb_rx, statistics);
 //            printf("aes decrypt %d suc transfer %d pkts\n", nf_id, nb_tx);
             nb_tx = rte_ring_enqueue_burst(tq, pkts, nb_rx, NULL);
@@ -38,6 +39,9 @@ pthread_aes_decryt(void *dumy){
                     rte_pktmbuf_free(m);
                 }
             }
+//            end = rdtsc();
+//            cycle = end - start;
+//            printf("cycle: %d\n", cycle);
         }
         sched_yield();
     }

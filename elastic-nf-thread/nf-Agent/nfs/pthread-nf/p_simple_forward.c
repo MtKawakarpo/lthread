@@ -8,6 +8,8 @@
 #include <rte_mbuf.h>
 #include "../includes/nf_common.h"
 #include "../includes/simple_forward.h"
+
+
 int
 pthread_forwarder(void *dumy){
 
@@ -22,31 +24,24 @@ pthread_forwarder(void *dumy){
     rq = nf_info_local->rx_q;
     tq = nf_info_local->tx_q;
 
+//    uint64_t start, end, cycle;
+
+    long long queue_full_cnt = 0;
+    long long iteration_cnt = 0;
+    int print_cnt = 3000000;
     printf("Core %d: Running NF thread %d\n", rte_lcore_id(), nf_id);
 
     while (1){
-
+        iteration_cnt++;
+        if(iteration_cnt%print_cnt == 0){
+            printf("nf %d : iteration = %lld, queue_full = %d\n",nf_id, iteration_cnt, queue_full_cnt);
+//            iteration_cnt = 0;
+//            queue_full_cnt = 0;
+        }
         nb_rx = rte_ring_sc_dequeue_bulk(rq, pkts, BURST_SIZE, NULL);
         if (unlikely(nb_rx > 0)) {
 
-//            do somthing
-//            int g, h;
-//            long long result = 0;
-//            long long multiply = 1;
-//            for(g = 0;g<40;g++){
-//                multiply += 2;
-//                if(multiply > 1024 *64)
-//                    multiply = 1;
-//                for(h = 0;h<multiply;h++){
-//                    result += h;
-//                    if(result < 0)
-//                        result = 0;
-//                }
-//
-//            }
-//            if(multiply == 1024 && result == 40960000)
-//                printf("result=%d \n", result);
-//            printf("forwarder %d suc transfer %d pkts\n", nf_id, nb_tx);
+//            start = rdtsc();
             nb_tx = rte_ring_enqueue_burst(tq, pkts, nb_rx, NULL);
 
             if (unlikely(nb_tx < nb_rx)) {
@@ -57,6 +52,11 @@ pthread_forwarder(void *dumy){
                     rte_pktmbuf_free(m);
                 }
             }
+//            end = rdtsc();
+//            cycle = end - start;
+//            printf("cycle: %d\n", cycle);
+            queue_full_cnt++;
+
         }
         sched_yield();
 

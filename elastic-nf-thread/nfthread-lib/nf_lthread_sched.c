@@ -73,6 +73,7 @@ void lthread_sched_ctor(void) __attribute__ ((constructor));
 void lthread_sched_ctor(void)
 {
 	int i;
+	printf(">>> LTHREAD_MAX_LCORES=%d\n", LTHREAD_MAX_LCORES);
 	for(i = 0;i<MAX_CORE_NUM;i++){
 //		add_flag[i] = 0;
 //		new_core_id[i] = -1;
@@ -287,6 +288,7 @@ struct lthread_sched *_lthread_sched_create(size_t stack_size)
 	new_sched->lcore_id = lcoreid;
 
 	schedcore[lcoreid] = new_sched;
+	printf(">>>creating sched[%d]\n", lcoreid);
 
 	new_sched->run_flag = 1;
 
@@ -598,8 +600,12 @@ void slave_scheduler_run(void){
  */
 struct lthread_sched *_lthread_sched_get(int lcore_id)
 {
-	if (lcore_id > LTHREAD_MAX_LCORES)
+	if (lcore_id > LTHREAD_MAX_LCORES) {
+		printf("lcore exceed max\n");
 		return NULL;
+	}
+	printf("calling get_ched with lcore=%d\n", lcore_id);
+	printf("return scheduler:%d\n", schedcore[lcore_id]->lcore_id);
 	return schedcore[lcore_id];
 }
 

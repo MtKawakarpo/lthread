@@ -1,6 +1,11 @@
+#define _GNU_SOURCE
 #include <stdint.h>
 #include <signal.h>
 #include <stdio.h>
+#include <sched.h>
+#include <errno.h>
+#include <stdio.h>
+#include <string.h>
 #include <rte_eal.h>
 #include <rte_ethdev.h>
 #include <rte_lcore.h>
@@ -12,7 +17,6 @@
 #include <rte_tcp.h>
 #include <rte_udp.h>
 #include <sys/time.h>
-#include <stdio.h>
 #include <stdlib.h>
 
 #include "flow_distributer.h"
@@ -28,11 +32,11 @@
 #define MBUF_SIZE (1600 + sizeof(struct rte_mbuf) + RTE_PKTMBUF_HEADROOM)
 #define MBUF_CACHE_SIZE 0
 #define NO_FLAGS 0
-#define RING_MAX 5  // 1个ring
+#define RING_MAX 2  // 1个ring
 #define NF_NAME_RX_RING "NF_%u_rq"
 #define NF_NAME_TX_RING "NF_%u_tq"
 
-#define NUM_PORTS 2
+#define NUM_PORTS 1
 #define MAX_NUM_PORT 4
 #define MAX_LCORE_NUM 24
 #define MAX_NF_NUM 1000
@@ -41,29 +45,29 @@
 
 /* configuartion */
 
-#define SFC_CHAIN_LEN 3 //FIXME: 限定SFC长度为3
+//#define SFC_CHAIN_LEN 3
 #define MONITOR_PERIOD 30  // 3秒钟更新 一次 monitor的信息
 
-uint16_t nb_nfs = 4; //修改时必须更新nf_func_config, service_time_config, priority_config, start_sfc_config, flow_ip_table
-//int rx_exclusive_lcore[RING_MAX] = {2, 4, 6, 8, 10};//server 39
-int rx_exclusive_lcore[RING_MAX] = {1,2,3,4,5};//server 33
+uint16_t nb_nfs = 3; //修改时必须更新nf_func_config, service_time_config, priority_config, start_sfc_config, flow_ip_table
+int rx_exclusive_lcore[RING_MAX] = {2, 4};//server 39
+//int rx_exclusive_lcore[RING_MAX] = {1,2,3,4,5};//server 33
 // 根据不同机器来制定, 0预留给core manager
-//int tx_exclusive_lcore[RING_MAX] = {12, 14, 16, 18, 20};//server 39
-int tx_exclusive_lcore[RING_MAX] = {6,7,8,9,10};//server 33
-lthread_func_t nf_fnuc_config[MAX_NF_NUM]={pthread_forwarder, pthread_forwarder, pthread_forwarder, pthread_forwarder,
-                                           pthread_forwarder, pthread_forwarder, pthread_forwarder, pthread_forwarder,                                           pthread_forwarder, pthread_forwarder, pthread_forwarder, pthread_forwarder,
-                                           pthread_forwarder, pthread_forwarder, pthread_forwarder, pthread_forwarder,
-                                           pthread_forwarder, pthread_forwarder, pthread_forwarder, pthread_forwarder,
-                                           pthread_forwarder, pthread_forwarder, pthread_forwarder, pthread_forwarder,
-                                           pthread_forwarder, pthread_forwarder, pthread_forwarder, pthread_forwarder,
-                                           pthread_forwarder, pthread_forwarder, pthread_forwarder, pthread_forwarder,
-                                           pthread_forwarder, pthread_forwarder, pthread_forwarder, pthread_forwarder,};//NF函数，在nfs头文件里面定义
-int start_sfc_config_flag[MAX_NF_NUM]={0, 0, 0, 0, 0, 0, 0, 0,
+int tx_exclusive_lcore[RING_MAX] = {6,8};//server 39
+//int tx_exclusive_lcore[RING_MAX] = {6,7,8,9,10};//server 33
+lthread_func_t nf_fnuc_config[MAX_NF_NUM]={pthread_firewall, pthread_firewall, pthread_firewall, pthread_firewall,
+                                           pthread_firewall, pthread_firewall, pthread_firewall, pthread_firewall,                                           pthread_firewall, pthread_firewall, pthread_firewall, pthread_firewall,
+                                           pthread_firewall, pthread_firewall, pthread_firewall, pthread_firewall,
+                                           pthread_firewall, pthread_firewall, pthread_firewall, pthread_firewall,
+                                           pthread_firewall, pthread_firewall, pthread_firewall, pthread_firewall,
+                                           pthread_firewall, pthread_firewall, pthread_firewall, pthread_firewall,
+                                           pthread_firewall, pthread_firewall, pthread_firewall, pthread_firewall,
+                                           pthread_firewall, pthread_firewall, pthread_firewall, pthread_firewall,};//NF函数，在nfs头文件里面定义
+int start_sfc_config_flag[MAX_NF_NUM]={1,1,1,0,0 ,0,0, 0,0,0, 0, 0, 0,
                                        0, 0, 0, 0, 0, 0, 0, 0,
                                        0, 0, 0, 0, 0, 0, 0, 0,
                                        0, 0, 0, 0, 0, 0, 0, 0,};
 uint64_t flow_ip_table[MAX_NF_NUM]={
-        16820416, 33597632,50374848, 67152064, 83929280, 100706496, 117483712, 134260928,
+        16820416,0,0, 33597632,50374848, 67152064, 83929280, 100706496, 117483712, 134260928,
         151038144, 167815360, 184592576, 201369792, 218147008, 234924224, 251701440, 268478656,
         285255872,302033088, 318810304, 335587520, 352364736, 369141952, 385919168, 402696384,
         419473600, 436250816,453028032,  469805248, 486582464, 503359680, 520136896, 536914112,
@@ -249,6 +253,14 @@ lthread_nf(void *dumy){
     return 0;
 
 }
+
+const char *sched_policy[] = {
+        "SCHED_OTHER",
+        "SCHED_FIFO",
+        "SCHED_RR",
+        "SCHED_BATCH"
+};
+
 int main(int argc, char *argv[]) {
 
 
@@ -257,6 +269,18 @@ int main(int argc, char *argv[]) {
     int start_sfc = 0;
     int port_nb = 1;
 
+    errno = 0;
+    struct sched_param sp = {
+//            .sched_priority = 1//SCHED_RR
+            .sched_priority = 0//SCHED_BATCH
+    };
+    ret = sched_setscheduler(0, SCHED_BATCH, &sp);
+    printf("return = %d\n", ret);
+    if (errno) {
+        printf("errno = %d\n", errno); // errno = 33
+        printf("error: %s\n", strerror(errno)); // error: Numerical argument out of domain
+    }
+    printf("Scheduler Policy now is %s.\n", sched_policy[sched_getscheduler(0)]);
 
     int socket_id = rte_socket_id();
     const char *rq_name;
@@ -315,7 +339,7 @@ int main(int argc, char *argv[]) {
     for(i = 0;i<nb_nfs;i++){
         rq_name = get_nf_rq_name(i);
         tq_name = get_nf_tq_name(i);
-        nfs_info_data[i].rx_q = rte_ring_create(rq_name, NF_QUEUE_RING_SIZE, socket_id, RING_F_SP_ENQ);
+        nfs_info_data[i].rx_q = rte_ring_create(rq_name, NF_QUEUE_RING_SIZE, socket_id, RING_F_SC_DEQ);
         nfs_info_data[i].tx_q = rte_ring_create(tq_name, NF_QUEUE_RING_SIZE, socket_id, RING_F_SP_ENQ);
         if(nfs_info_data[i].rx_q == NULL || nfs_info_data[i].tx_q == NULL){
             rte_exit(EXIT_FAILURE, "cannot create ring for nf %d\n", i);
@@ -338,6 +362,25 @@ int main(int argc, char *argv[]) {
                 printf("register nf %d tx ring\n", i-1);
                 nf_need_output(i, nf_tx_port[i-1], nfs_info_data[i-1].tx_q);  // 参数为 nf_id, 要往哪个port 上 发数据, nf_id 对应的tx_ring
             }
+            //FIXME:for test
+//            if(i == 0) {
+//                printf(">>>add flow entry %d-->nf %d\n", flow_ip_table[nb_nfs], i);
+//                flow_table_add_entry(flow_ip_table[nb_nfs], i); // flow hash (这里使用的是flow的源IP值), nf_id
+//            }
+//                printf(">>>add flow entry %d-->nf %d\n", flow_ip_table[nb_nfs+1], i);
+//                flow_table_add_entry(flow_ip_table[nb_nfs+1], i); // flow hash (这里使用的是flow的源IP值), nf_id
+//                printf(">>>add flow entry %d-->nf %d\n", flow_ip_table[nb_nfs+2], i);
+//                flow_table_add_entry(flow_ip_table[nb_nfs+2], i); // flow hash (这里使用的是flow的源IP值), nf_id
+
+//            }else if (i == 1){
+//                printf(">>>add flow entry %d-->nf %d\n", flow_ip_table[nb_nfs+3], i);
+//                flow_table_add_entry(flow_ip_table[nb_nfs+3], i); // flow hash (这里使用的是flow的源IP值), nf_id
+//                printf(">>>add flow entry %d-->nf %d\n", flow_ip_table[nb_nfs+4], i);
+//                flow_table_add_entry(flow_ip_table[nb_nfs+4], i); // flow hash (这里使用的是flow的源IP值), nf_id
+//            }else if( i == 2){
+//                printf(">>>add flow entry %d-->nf %d\n", flow_ip_table[nb_nfs+5], i);
+//                flow_table_add_entry(flow_ip_table[nb_nfs+5], i); // flow hash (这里使用的是flow的源IP值), nf_id
+//            }
         }else{
             if(start_sfc == 0){
                 start_sfc = 1;//first nf of sfc
@@ -359,7 +402,7 @@ int main(int argc, char *argv[]) {
 
     }
     printf("finish load nfs info\n");
-    cur_lcore = 22;
+    cur_lcore = 10;
     for(i = 0;i<nb_nfs;i++){
 //        cur_lcore = rte_get_next_lcore(cur_lcore, 1, 1);
 
@@ -392,23 +435,23 @@ int main(int argc, char *argv[]) {
 
     for (; keep_running;){
 
-        rte_delay_ms(500);
+        rte_delay_ms(1000);
 //        rte_delay_ms(500);
         monitor_tick++;
-        if (monitor_tick == MONITOR_PERIOD) {
+//        if (monitor_tick == MONITOR_PERIOD) {
             monitor_update(3);
             monitor_tick = 0;
-        }
+//        }
         for(nf_id = 0;nf_id<nb_nfs; nf_id++){
 
             processed_pps = get_processed_pps_with_nf_id(nf_id);  // nf 0 的处理能力
             dropped_pps = get_dropped_pps_with_nf_id(nf_id); // nf 0 每秒丢包数
             dropped_ratio = get_dropped_ratio_with_nf_id(nf_id); // nf 0 这段时间的丢包率
-            printf(">>> NF %d <<< processing pps: %9ld, drop pps: %9ld, drop ratio: %9lf\n", nf_id, processed_pps,
-                   dropped_pps, dropped_ratio);
-//                }
+//            printf(">>> NF %d <<< processing pps: %9ld, drop pps: %9ld, drop ratio: %9lf\n", nf_id, processed_pps,
+//                   dropped_pps, dropped_ratio);
+                }
         }
 
-    }
+//    }
     return 0;
 }

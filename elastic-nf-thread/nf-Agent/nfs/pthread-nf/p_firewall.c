@@ -9,6 +9,19 @@
 #include "../includes/nf_common.h"
 #include "../includes/firewall.h"
 
+/* Set *hi and *lo to the high and low order bits of the cycle counter.
+ *    Implementation requires assembly code to use the rdtsc instruction. */
+static uint64_t rdtsc(void)
+{
+    uint64_t var;
+    uint32_t hi, lo;
+
+    __asm volatile
+    ("rdtsc" : "=a" (lo), "=d" (hi));
+
+    var = ((uint64_t)hi << 32) | lo;
+    return (var);
+}
 int
 pthread_firewall(void *dumy){
 
@@ -27,14 +40,28 @@ pthread_firewall(void *dumy){
 
     printf("Core %d: Running NF thread %d\n", rte_lcore_id(), nf_id);
     nf_firewall_init(statistics);
+    long long queue_full_cnt = 0;
+    long long iteration_cnt = 0;
+    int print_cnt = 3000000;
+    uint64_t start, end, cycle;
+
 
     while (1){
 
+        iteration_cnt++;
+        if(iteration_cnt%print_cnt == 0){
+//            printf("nf %d : iteration = %lld, queue_full = %d\n",nf_id, iteration_cnt, queue_full_cnt);
+//            iteration_cnt = 0;
+//            queue_full_cnt = 0;
+        }
         nb_rx = rte_ring_sc_dequeue_bulk(rq, pkts, BURST_SIZE, NULL);
         if (unlikely(nb_rx > 0)) {
+//            start = rdtsc();
 
             nf_firewall_handler(pkts, nb_rx, statistics);
-//            printf("firewall %d suc transfer %d pkts\n", nf_id, nb_tx);
+//            end = rdtsc();
+//            cycle = end - start;
+//            printf("cycle: %d\n", cycle);
             nb_tx = rte_ring_enqueue_burst(tq, pkts, nb_rx, NULL);
 
             if (unlikely(nb_tx < nb_rx)) {
@@ -45,8 +72,11 @@ pthread_firewall(void *dumy){
                     rte_pktmbuf_free(m);
                 }
             }
+
+            queue_full_cnt++;
+        }else{
         }
-//        sched_yield();
+        sched_yield();
 
     }
     return 0;
