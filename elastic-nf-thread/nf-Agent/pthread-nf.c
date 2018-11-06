@@ -26,6 +26,10 @@
 #include "nfs/includes/aes_encrypt.h"
 #include "nfs/includes/aes_decrypt.h"
 
+#define __USE_GNU
+#include <sched.h>
+#include <pthread.h>
+
 #define RX_RING_SIZE 512
 #define TX_RING_SIZE 512
 #define NUM_MBUFS 8192 * 128
@@ -41,7 +45,11 @@
 #define MAX_LCORE_NUM 24
 #define MAX_NF_NUM 1000
 #define MAX_AGENT_NUM 5
-#define NF_QUEUE_RING_SIZE 256
+#define NF_QUEUE_RING_SIZE (256 * 32)
+
+pthread_t pthreads[MAX_NF_NUM];
+pthread_attr_t pthread_attrs[MAX_NF_NUM];
+struct sched_param sches[MAX_NF_NUM];
 
 /* configuartion */
 
@@ -270,6 +278,9 @@ int main(int argc, char *argv[]) {
     int port_nb = 1;
 
     errno = 0;
+
+    cpu_set_t pthread_cpu_info;
+
     struct sched_param sp = {
 //            .sched_priority = 1//SCHED_RR
             .sched_priority = 0//SCHED_BATCH
@@ -339,8 +350,8 @@ int main(int argc, char *argv[]) {
     for(i = 0;i<nb_nfs;i++){
         rq_name = get_nf_rq_name(i);
         tq_name = get_nf_tq_name(i);
-        nfs_info_data[i].rx_q = rte_ring_create(rq_name, NF_QUEUE_RING_SIZE, socket_id, RING_F_SC_DEQ);
-        nfs_info_data[i].tx_q = rte_ring_create(tq_name, NF_QUEUE_RING_SIZE, socket_id, RING_F_SP_ENQ);
+        nfs_info_data[i].rx_q = rte_ring_create(rq_name, NF_QUEUE_RING_SIZE, socket_id, RING_F_SC_DEQ | RING_F_SP_ENQ);
+        nfs_info_data[i].tx_q = rte_ring_create(tq_name, NF_QUEUE_RING_SIZE, socket_id, RING_F_SC_DEQ | RING_F_SP_ENQ);
         if(nfs_info_data[i].rx_q == NULL || nfs_info_data[i].tx_q == NULL){
             rte_exit(EXIT_FAILURE, "cannot create ring for nf %d\n", i);
         }
@@ -402,8 +413,9 @@ int main(int argc, char *argv[]) {
 
     }
     printf("finish load nfs info\n");
-    cur_lcore = 10;
-    for(i = 0;i<nb_nfs;i++){
+    cur_lcore = 12;
+
+    /*for(i = 0;i<nb_nfs;i++){
 //        cur_lcore = rte_get_next_lcore(cur_lcore, 1, 1);
 
         printf("launching nf thread %d\n", i);
@@ -413,7 +425,55 @@ int main(int argc, char *argv[]) {
         }
         cur_lcore = rte_get_next_lcore(cur_lcore, 1, 1);
 
+    }*/
+    // 使用pthread原生api
+    CPU_ZERO(&pthread_cpu_info);
+    CPU_SET(cur_lcore, &pthread_cpu_info);
+    for (i = 0; i < nb_nfs; ++i) {
+        pthread_attr_init(&pthread_attrs[i]);
+
+        // 设置优先级
+        if (1) {
+            ret = pthread_attr_setschedpolicy(&pthread_attrs[i], SCHED_RR);
+            if (ret != 0) {
+                printf("Pthread policy failed for NF %d\n", i);
+
+            }
+
+            pthread_attr_getschedparam(&pthread_attrs[i], &sches[i]);
+
+//            sches[i].sched_priority = 20 + i * 30;
+
+            pthread_attr_setschedparam(&pthread_attrs[i], &sches[i]);
+        }
+
+
+        if (pthread_create(&pthreads[i], &pthread_attrs[i],
+                nfs_info_data[i].fun, (void*)nf[i]) != 0) {
+            printf("Pthread creation failed for NF %d\n", i);
+
+            return 2;
+        }
+
+        if (pthread_setaffinity_np(pthreads[i], sizeof(cpu_set_t), &pthread_cpu_info) != 0) {
+            printf("Pthread affinity setting failed for NF %d\n", i);
+        }
+
     }
+//
+//    for(i = 0;i<nb_nfs;i++){
+////        cur_lcore = rte_get_next_lcore(cur_lcore, 1, 1);
+//
+//        printf("launching nf thread %d\n", i);
+//        if(rte_eal_remote_launch(nfs_info_data[i].fun, (void *)nf[i], cur_lcore) == -EBUSY){
+//            printf("core %d cannot use for nf %d\n", cur_lcore, i);
+//            return -1;
+//        }
+//        cur_lcore = rte_get_next_lcore(cur_lcore, 1, 1);
+//
+//    }
+
+
     // 分配一个核给 flow distributor tx thread2
     for (i = 0; i < port_nb*RING_MAX; ++i) {
         struct port_info *port_info2 = calloc(1, sizeof(struct port_info));
@@ -450,7 +510,12 @@ int main(int argc, char *argv[]) {
 //            printf(">>> NF %d <<< processing pps: %9ld, drop pps: %9ld, drop ratio: %9lf\n", nf_id, processed_pps,
 //                   dropped_pps, dropped_ratio);
                 }
-        }
+    }
+
+    for (i = 0; i < nb_nfs; ++i) {
+        pthread_join(pthreads[i], NULL);
+    }
+
 
 //    }
     return 0;
