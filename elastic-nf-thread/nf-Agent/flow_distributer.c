@@ -166,11 +166,15 @@ int flow_director_rx_thread(struct port_info *args) {
             last_stats[i].total_pkts = 0;
             last_stats[i].processed_pkts = 0;
             last_stats[i].dropped_pkts = 0;
+            last_stats[i].tx_pkts = 0;
+
         }
         for (i = 0; i < MAX_NF_NB; ++i) {
             cur_stats[i].total_pkts = 0;
             cur_stats[i].processed_pkts = 0;
             cur_stats[i].dropped_pkts = 0;
+            cur_stats[i].tx_pkts = 0;
+
         }
         rte_atomic16_set(&is_rx_configged, 1);
         printf("RX monitor 初始化成功\n");
@@ -192,6 +196,7 @@ int flow_director_rx_thread(struct port_info *args) {
             for (i = 0; i < MAX_NF_NB; ++i) {
                 cur_stats[i].processed_pkts = 0;
                 cur_stats[i].dropped_pkts = 0;
+                cur_stats[i].tx_pkts = 0;
             }
             reset_stats = 0;
         }
@@ -243,8 +248,8 @@ int flow_director_rx_thread(struct port_info *args) {
                 continue;
             }
 
-//            ret = rte_ring_sp_enqueue(nf_rx_ring, (void *)pkts[i]);
-            ret = rte_ring_enqueue(nf_rx_ring, (void *)pkts[i]);
+            ret = rte_ring_sp_enqueue(nf_rx_ring, (void *)pkts[i]);
+//            ret = rte_ring_enqueue(nf_rx_ring, (void *)pkts[i]);
 //            if (worker_id != 0 && worker_id != 1)
 //                ret = 1;
             if (unlikely(ret != 0)) {
@@ -282,6 +287,7 @@ void monitor_update(int period) {
     for (i = 0; i < MAX_NF_NB; ++i) {
         cur_stats[i].processed_pps = cur_stats[i].processed_pkts / period;
         cur_stats[i].dropped_pps = cur_stats[i].dropped_pkts / period;
+        cur_stats[i].tx_pkts = cur_stats[i].tx_pkts / period;
         if ((cur_stats[i].dropped_pkts + cur_stats[i].processed_pkts) == 0)
             cur_stats[i].dropped_ratio = 0;
         else
@@ -297,6 +303,9 @@ uint64_t get_processed_pps_with_nf_id (int nf_id) {
 }
 uint64_t get_dropped_pps_with_nf_id (int nf_id) {
     return cur_stats[nf_id].dropped_pps;
+}
+uint64_t get_tx_pps_with_nf_id (int nf_id) {
+    return cur_stats[nf_id].tx_pkts;
 }
 double get_dropped_ratio_with_nf_id (int nf_id) {
     return cur_stats[nf_id].dropped_ratio;
@@ -333,7 +342,7 @@ int flow_director_tx_thread(struct port_info *args) {
 
     if(flow_per_tx == 0)
         flow_per_tx = 1;
-    start_flow = 0+thread_id * flow_per_tx;
+    start_flow = 0 + thread_id * flow_per_tx;
     end_flow = flow_per_tx * (thread_id+1);
     if(thread_id == nb_ports-1){
         end_flow = txconf_count;
@@ -350,7 +359,7 @@ int flow_director_tx_thread(struct port_info *args) {
                 continue;
             if (nf_txconf_mapping[i]->out_port != port_id)
                 continue;
-            deq_nb = rte_ring_sc_dequeue_bulk(nf_txconf_mapping[i]->nf_tx_ring,
+            deq_nb = rte_ring_sc_dequeue_burst(nf_txconf_mapping[i]->nf_tx_ring,
                                               (void *)pkts, MAX_PKTS_BURST_TX, NULL);
 
             if (unlikely(deq_nb == 0))
@@ -358,9 +367,14 @@ int flow_director_tx_thread(struct port_info *args) {
 
 //            printf("tx %d recv nf %d with %d pkts\n",thread_id, nf_txconf_mapping[i]->nf_id, deq_nb);
             ret = rte_eth_tx_burst(nf_txconf_mapping[i]->out_port, queue_id, pkts, deq_nb);
+            cur_stats[i].tx_pkts += deq_nb;
+//            if (i == 1 && ret != 0) {
+//                printf("NF 1 output %d packets\n", ret);
+//            }
             if (unlikely(ret < deq_nb)) {
                 pktmbuf_free_bulk(&pkts[ret], deq_nb - ret);
             }
+
 
         }
 

@@ -54,6 +54,8 @@ struct nf_flow_stats {
 
     uint64_t dropped_pps;
 
+    uint64_t tx_pkts;
+
     double dropped_ratio;
 
 };
@@ -91,6 +93,7 @@ void monitor_update(int period);  // 统计的周期
 
 uint64_t get_processed_pps_with_nf_id (int nf_id);
 uint64_t get_dropped_pps_with_nf_id (int nf_id);
+uint64_t get_tx_pps_with_nf_id (int nf_id);
 double get_dropped_ratio_with_nf_id (int nf_id);
 
 

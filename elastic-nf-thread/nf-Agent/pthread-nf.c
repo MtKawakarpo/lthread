@@ -476,12 +476,12 @@ int main(int argc, char *argv[]) {
 
 
     // 分配一个核给 flow distributor tx thread2
-    for (i = 0; i < port_nb*RING_MAX; ++i) {
+    for (i = 0; i < port_nb; ++i) {
         struct port_info *port_info2 = calloc(1, sizeof(struct port_info));
         port_info2->port_id = 0;
         port_info2->queue_id = i;
         port_info2->thread_id = i;
-        port_info2->nb_ports = port_nb*RING_MAX;
+        port_info2->nb_ports = port_nb;
         cur_lcore = tx_exclusive_lcore[i];
         if (rte_eal_remote_launch(flow_director_tx_thread, (void *) port_info2, cur_lcore) == -EBUSY) {
             printf("Core %d is already busy, can't use for TX of flow director \n", cur_lcore);
@@ -492,11 +492,12 @@ int main(int argc, char *argv[]) {
     int monitor_tick = 0, nf_id;
     uint64_t processed_pps = 0;
     uint64_t dropped_pps = 0; // nf 0 每秒丢包数
+    uint64_t tx_pps = 0;
     double dropped_ratio = 0;
 
     for (; keep_running;){
 
-        rte_delay_ms(1000);
+        rte_delay_ms(1000 * 3);
 //        rte_delay_ms(500);
         monitor_tick++;
 //        if (monitor_tick == MONITOR_PERIOD) {
@@ -508,9 +509,14 @@ int main(int argc, char *argv[]) {
             processed_pps = get_processed_pps_with_nf_id(nf_id);  // nf 0 的处理能力
             dropped_pps = get_dropped_pps_with_nf_id(nf_id); // nf 0 每秒丢包数
             dropped_ratio = get_dropped_ratio_with_nf_id(nf_id); // nf 0 这段时间的丢包率
-            printf(">>> NF %d <<< processing pps: %9ld, drop pps: %9ld, drop ratio: %9lf\n", nf_id, processed_pps,
-                   dropped_pps, dropped_ratio);
-                }
+            tx_pps = get_tx_pps_with_nf_id(nf_id);
+            printf(">>> NF %d <<< processing pps: %9ld, drop pps: %9ld, drop ratio: %9lf, tx pps: %9ld \n", nf_id, processed_pps,
+                   dropped_pps, dropped_ratio, tx_pps);
+
+        }
+        printf("---------------------------------------------\n");
+
+
     }
 
     for (i = 0; i < nb_nfs; ++i) {
