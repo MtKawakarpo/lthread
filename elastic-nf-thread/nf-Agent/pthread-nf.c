@@ -45,7 +45,7 @@
 #define MAX_LCORE_NUM 24
 #define MAX_NF_NUM 1000
 #define MAX_AGENT_NUM 5
-#define NF_QUEUE_RING_SIZE (256 * 32)
+#define NF_QUEUE_RING_SIZE (256)
 
 pthread_t pthreads[MAX_NF_NUM];
 pthread_attr_t pthread_attrs[MAX_NF_NUM];
@@ -60,7 +60,7 @@ uint16_t nb_nfs = 3; //修改时必须更新nf_func_config, service_time_config,
 int rx_exclusive_lcore[RING_MAX] = {2, 4};//server 39
 //int rx_exclusive_lcore[RING_MAX] = {1,2,3,4,5};//server 33
 // 根据不同机器来制定, 0预留给core manager
-int tx_exclusive_lcore[RING_MAX] = {6,8};//server 39
+int tx_exclusive_lcore[RING_MAX] = {6, 8};//server 39
 //int tx_exclusive_lcore[RING_MAX] = {6,7,8,9,10};//server 33
 lthread_func_t nf_fnuc_config[MAX_NF_NUM]={pthread_firewall, pthread_firewall, pthread_firewall, pthread_firewall,
                                            pthread_firewall, pthread_firewall, pthread_firewall, pthread_firewall,                                           pthread_firewall, pthread_firewall, pthread_firewall, pthread_firewall,
@@ -70,12 +70,12 @@ lthread_func_t nf_fnuc_config[MAX_NF_NUM]={pthread_firewall, pthread_firewall, p
                                            pthread_firewall, pthread_firewall, pthread_firewall, pthread_firewall,
                                            pthread_firewall, pthread_firewall, pthread_firewall, pthread_firewall,
                                            pthread_firewall, pthread_firewall, pthread_firewall, pthread_firewall,};//NF函数，在nfs头文件里面定义
-int start_sfc_config_flag[MAX_NF_NUM]={1,1,1,0,0 ,0,0, 0,0,0, 0, 0, 0,
+int start_sfc_config_flag[MAX_NF_NUM]={0,0 ,0,0, 0,0,0, 0, 0, 0,
                                        0, 0, 0, 0, 0, 0, 0, 0,
                                        0, 0, 0, 0, 0, 0, 0, 0,
                                        0, 0, 0, 0, 0, 0, 0, 0,};
 uint64_t flow_ip_table[MAX_NF_NUM]={
-        16820416,0,0, 33597632,50374848, 67152064, 83929280, 100706496, 117483712, 134260928,
+        16820416,33597632,50374848, 67152064, 83929280, 100706496, 117483712, 134260928,
         151038144, 167815360, 184592576, 201369792, 218147008, 234924224, 251701440, 268478656,
         285255872,302033088, 318810304, 335587520, 352364736, 369141952, 385919168, 402696384,
         419473600, 436250816,453028032,  469805248, 486582464, 503359680, 520136896, 536914112,
@@ -281,17 +281,17 @@ int main(int argc, char *argv[]) {
 
     cpu_set_t pthread_cpu_info;
 
-    struct sched_param sp = {
-//            .sched_priority = 1//SCHED_RR
-            .sched_priority = 0//SCHED_BATCH
-    };
-    ret = sched_setscheduler(0, SCHED_BATCH, &sp);
-    printf("return = %d\n", ret);
-    if (errno) {
-        printf("errno = %d\n", errno); // errno = 33
-        printf("error: %s\n", strerror(errno)); // error: Numerical argument out of domain
-    }
-    printf("Scheduler Policy now is %s.\n", sched_policy[sched_getscheduler(0)]);
+//    struct sched_param sp = {
+////            .sched_priority = 1//SCHED_RR
+//            .sched_priority = 0//SCHED_BATCH
+//    };
+//    ret = sched_setscheduler(0, SCHED_BATCH, &sp);
+//    printf("return = %d\n", ret);
+//    if (errno) {
+//        printf("errno = %d\n", errno); // errno = 33
+//        printf("error: %s\n", strerror(errno)); // error: Numerical argument out of domain
+//    }
+//    printf("Scheduler Policy now is %s.\n", sched_policy[sched_getscheduler(0)]);
 
     int socket_id = rte_socket_id();
     const char *rq_name;
@@ -448,6 +448,7 @@ int main(int argc, char *argv[]) {
         }
 
 
+        nfs_info_data[i].lcore_id = cur_lcore;
         if (pthread_create(&pthreads[i], &pthread_attrs[i],
                 nfs_info_data[i].fun, (void*)nf[i]) != 0) {
             printf("Pthread creation failed for NF %d\n", i);
@@ -507,8 +508,8 @@ int main(int argc, char *argv[]) {
             processed_pps = get_processed_pps_with_nf_id(nf_id);  // nf 0 的处理能力
             dropped_pps = get_dropped_pps_with_nf_id(nf_id); // nf 0 每秒丢包数
             dropped_ratio = get_dropped_ratio_with_nf_id(nf_id); // nf 0 这段时间的丢包率
-//            printf(">>> NF %d <<< processing pps: %9ld, drop pps: %9ld, drop ratio: %9lf\n", nf_id, processed_pps,
-//                   dropped_pps, dropped_ratio);
+            printf(">>> NF %d <<< processing pps: %9ld, drop pps: %9ld, drop ratio: %9lf\n", nf_id, processed_pps,
+                   dropped_pps, dropped_ratio);
                 }
     }
 

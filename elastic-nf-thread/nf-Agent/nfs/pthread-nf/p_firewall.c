@@ -9,19 +9,7 @@
 #include "../includes/nf_common.h"
 #include "../includes/firewall.h"
 
-/* Set *hi and *lo to the high and low order bits of the cycle counter.
- *    Implementation requires assembly code to use the rdtsc instruction. */
-static uint64_t rdtsc(void)
-{
-    uint64_t var;
-    uint32_t hi, lo;
 
-    __asm volatile
-    ("rdtsc" : "=a" (lo), "=d" (hi));
-
-    var = ((uint64_t)hi << 32) | lo;
-    return (var);
-}
 int
 pthread_firewall(void *dumy){
 
@@ -38,13 +26,13 @@ pthread_firewall(void *dumy){
     rq = nf_info_local->rx_q;
     tq = nf_info_local->tx_q;
 
-    printf("Core %d: Running NF thread %d\n", rte_lcore_id(), nf_id);
+    printf("Core %d: Running NF thread %d\n", nf_info_local->lcore_id, nf_id);
     nf_firewall_init(statistics);
     int queue_full_cnt = 1;
     long long iteration_cnt = 0;
     int print_cnt = 3000000;
     int pkt_cnt = 0;
-    uint64_t start, end, cycle;
+//    uint64_t start, end, cycle;
 
 
     while (1){
