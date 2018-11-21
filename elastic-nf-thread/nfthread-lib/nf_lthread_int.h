@@ -179,6 +179,8 @@ struct lthread {
 	uint64_t state;				/* current lthread state */
 
 	uint8_t should_migrate;
+	uint64_t work_cycle;
+	uint64_t poll_cycle;
 
 	struct lthread_sched *sched;		/* current scheduler */
 	void *stack;				/* ptr to actual stack */

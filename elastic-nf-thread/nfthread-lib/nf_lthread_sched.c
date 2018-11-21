@@ -346,6 +346,19 @@ void lthread_scheduler_shutdown_all(void)
 			schedcore[i]->run_flag = 0;
 	}
 }
+static uint64_t rdtsc(void)
+{
+	uint64_t var;
+	uint32_t hi, lo;
+
+	__asm volatile
+	("rdtsc" : "=a" (lo), "=d" (hi));
+
+	var = ((uint64_t)hi << 32) | lo;
+	return (var);
+}
+uint64_t laststart, start, cycle_total, cycle_thread, last_start_thread=0, start_thread, end_thread, cycle_thread_total, poll_cycle_thread_total;
+
 
 /*
  * Resume a suspended lthread
@@ -365,15 +378,15 @@ static inline void _lthread_resume(struct lthread *lt)
 
 	sched->current_lthread = lt;
 
-	if (state & (BIT(ST_LT_CANCELLED) | BIT(ST_LT_EXITED))) {
-		printf("lt state = detach | cancle | exit\n");
-		/* if detached we can free the thread now */
-		if (state & BIT(ST_LT_DETACH)) {
-			_lthread_free(lt);
-			sched->current_lthread = NULL;
-			return;
-		}
-	}
+//	if (state & (BIT(ST_LT_CANCELLED) | BIT(ST_LT_EXITED))) {
+//		printf("lt state = detach | cancle | exit\n");
+//		/* if detached we can free the thread now */
+//		if (state & BIT(ST_LT_DETACH)) {
+//			_lthread_free(lt);
+//			sched->current_lthread = NULL;
+//			return;
+//		}
+//	}
 
 	if (state & BIT(ST_LT_INIT)) {
 //		printf("lt state = init\n");
@@ -401,7 +414,10 @@ static inline void _lthread_resume(struct lthread *lt)
 	/* switch to the new thread */
 //	if(lt->thread_id == 3)
 //		printf("core %d switch to lt %d->ctx\n", sched->lcore_id, lt->thread_id);
+	start_thread = rdtsc();
 	ctx_switch(&lt->ctx, &sched->ctx);
+	end_thread = rdtsc();
+	cycle_thread = end_thread - start_thread;
     //FIXME:thread call yield() return here
 
 //    if(lt->thread_id == 3)
@@ -513,6 +529,10 @@ int set_migrate_to_core(int value, int lcore_id){
 int read_migrate_to_core(int lcore_id){
 	return migrate_to_core[lcore_id];
 }
+
+/* Set *hi and *lo to the high and low order bits of the cycle counter.
+ *    Implementation requires assembly code to use the rdtsc instruction. */
+
 /*
  * Run the master thread scheduler
  */
@@ -534,13 +554,32 @@ void slave_scheduler_run(void){
 			rte_lcore_index(rte_lcore_id()));
 	int dst_lcore, migrate;
 
+	start = rdtsc();
+	laststart = start;
 	while (!_lthread_sched_isdone(sched)) {
-
+//		cycle_total = rdtsc()-laststart;
+//		laststart = rdtsc();
 //		rte_timer_manage();
-//		cnt++;
+		cnt++;
+
+		if(cnt%1000000==0){
+			laststart = start;
+			start = rdtsc();
+			cycle_total = (start - laststart);
+//			if(cnt%1000000==0){
+				printf("total cycle = %"PRIu64"(comput)cpu\%=%f, (poll) cpu\%=%f\n",
+					   cycle_total, (double)cycle_thread_total*1.0/cycle_total, (double)poll_cycle_thread_total*1.0/cycle_total);
+				cnt = 0;
+//			}
+
+			cycle_total = 0;
+			cycle_thread_total = 0;
+			poll_cycle_thread_total = 0;
+		}
 
 		lt = _lthread_queue_poll(sched->ready);
 		if (lt != NULL) {
+			//TODO:检测scale的机制应该改为基于CPU利用率的
 			//check whether to clean threads
 //			if(cnt % check_dv_iteration == 0){
 //				migrate = rte_atomic16_read(&migrate_flag[lcore_id]);
@@ -571,13 +610,22 @@ void slave_scheduler_run(void){
 //			}
 //			cnt%=1000000;
 			_lthread_resume(lt);
+			cycle_thread_total += lt->work_cycle;
+			poll_cycle_thread_total += lt->poll_cycle;
+//			if(cnt %5000000==0){
+//				cnt = 0;
+//				printf("total cycle: %d, thread cycle: %d\n", cycle_total, cycle_thread);
+//			}
+		}
+		if(cnt%10000000==0){
+			lt = _lthread_queue_poll(sched->pready);
+			if (lt != NULL) {
+				printf("core %d get a lt %d from pready queue\n", lcore_id, lt->thread_id);
+				_lthread_resume(lt);
+			}
+
 		}
 
-		lt = _lthread_queue_poll(sched->pready);
-		if (lt != NULL) {
-			printf("core %d get a lt %d from pready queue\n", lcore_id, lt->thread_id);
-			_lthread_resume(lt);
-		}
 	}
 
 

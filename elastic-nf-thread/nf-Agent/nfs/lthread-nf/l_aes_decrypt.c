@@ -42,6 +42,20 @@ nf_aes_decrypt_handler(struct rte_mbuf *pkt[], uint16_t num, struct nf_statistic
 
     return num_out;
 }
+
+///* Set *hi and *lo to the high and low order bits of the cycle counter.
+// *    Implementation requires assembly code to use the rdtsc instruction. */
+//static uint64_t rdtsc_2(void)
+//{
+//    uint64_t var;
+//    uint32_t hi, lo;
+//
+//    __asm volatile
+//    ("rdtsc" : "=a" (lo), "=d" (hi));
+//
+//    var = ((uint64_t)hi << 32) | lo;
+//    return (var);
+//}
 int
 lthread_aes_decryt(void *dumy){
 
@@ -63,15 +77,35 @@ lthread_aes_decryt(void *dumy){
     printf("Core %d: Running NF thread %d\n", rte_lcore_id(), nf_id);
     nf_aes_decrypt_init(statistics);
     printf("finish init aes decryt\n");
+    uint64_t start, end, cycle, cycle_poll;
 
     while (1){
-        nb_rx = nf_ring_dequeue_burst(rq, pkts, BURST_SIZE, NULL);
+        //FIXME:这里拆解了收发包接口，为了统计CPU利用率
+//        nb_rx = nf_ring_dequeue_burst(rq, pkts, BURST_SIZE, NULL);
+        start = rdtsc_2();
+        nb_rx = rte_ring_sc_dequeue_bulk(rq, pkts, BURST_SIZE, NULL);
+        end = rdtsc_2();
+        cycle_poll = end - start;
+        if(unlikely(nb_rx == 0)){
+            lthread_yield_with_cycle(0,cycle_poll );
+        }
         if (unlikely(nb_rx > 0)) {
-
+            start = rdtsc_2();
             nf_aes_decrypt_handler(pkts, nb_rx, statistics);
-            nb_tx = nf_ring_enqueue_burst(tq, pkts, nb_rx, NULL);
-//            printf("aes decryt %d suc transfer %d pkts\n", nf_id, nb_tx);
+//            nb_tx = nf_ring_enqueue_burst(tq, pkts, nb_rx, NULL);
+            nb_tx = rte_ring_enqueue_burst(tq, pkts, nb_rx, NULL);
+            if (unlikely(nb_tx < nb_rx)) {
+                uint32_t k;
 
+                for (k = nb_tx; k < nb_rx; k++) {
+                    struct rte_mbuf *m = pkts[k];
+
+                    rte_pktmbuf_free(m);
+                }
+            }
+            end = rdtsc_2();
+            cycle = end - start;
+            lthread_yield_with_cycle(cycle, cycle_poll);
         }else {
             continue;
         }

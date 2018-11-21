@@ -190,6 +190,8 @@ _lthread_init(struct lthread *lt,
 
 	/* set should migrtae = 0 */
 	lt->should_migrate = 0;
+	lt->work_cycle = 0;
+	lt->poll_cycle = 0;
 }
 
 /*
@@ -444,7 +446,25 @@ int lthread_cancel(struct lthread *cancel_lt)
 ////	DIAG_EVENT(lt, LT_DIAG_LTHREAD_SLEEP, clks, 0);
 //	_suspend();
 //}
+void lthread_yield_with_cycle(uint64_t cycle, uint64_t cycle2)
+{
+	struct lthread *lt = THIS_LTHREAD;
+	uint8_t should_migrate = lt->should_migrate;
+	lt->work_cycle = cycle;
+	lt->poll_cycle = cycle2;
 
+	if(should_migrate == 0) {
+		_ready_queue_insert(THIS_SCHED, lt);
+		ctx_switch(&(THIS_SCHED)->ctx, &lt->ctx);
+	}
+	else{
+		int dst_core = lt->should_migrate;
+//        printf(">>>lt %d found it should migrate to core %d\n\n", lt->thread_id ,dst_core);
+//        FIXME:lt->should_migrate应该让scheduler还是线程自己置0?多个写者会不会有问题？
+		lt->should_migrate = 0;
+		lthread_set_affinity(lt, dst_core);
+	}
+}
 /*
  * Requeue the current thread to the back of the ready queue
  */

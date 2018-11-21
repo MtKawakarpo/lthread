@@ -395,6 +395,7 @@ void lthread_exit(void *val);
   * @return
   *  none
   */
+void lthread_yield_with_cycle(uint64_t cycle, uint64_t cycle2);
 void lthread_yield(void);
 
 /**

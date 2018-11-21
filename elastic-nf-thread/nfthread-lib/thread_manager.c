@@ -96,7 +96,7 @@ unsigned nf_ring_dequeue_burst(struct rte_ring *rx_ring, void **rx_bufs,
 
 /*
  * FIXME: if a thread hold a lock and would not unlock until finish enqueue operation,then it will sleep with a lock
- * otherwise we let thread don't unlock depend on enqueue ret
+ * otherwise we let thread don't unlock depend on rte_eth_tx_burst ret
  */
 int nf_ring_enqueue(struct rte_ring *tx_ring, void *tx_pkt){
     uint16_t nb_tx = rte_ring_enqueue(tx_ring, tx_pkt);

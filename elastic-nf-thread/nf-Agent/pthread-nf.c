@@ -36,7 +36,7 @@
 #define MBUF_SIZE (1600 + sizeof(struct rte_mbuf) + RTE_PKTMBUF_HEADROOM)
 #define MBUF_CACHE_SIZE 0
 #define NO_FLAGS 0
-#define RING_MAX 2  // 1个ring
+#define RING_MAX 1  // 1个ring
 #define NF_NAME_RX_RING "NF_%u_rq"
 #define NF_NAME_TX_RING "NF_%u_tq"
 
@@ -45,7 +45,7 @@
 #define MAX_LCORE_NUM 24
 #define MAX_NF_NUM 1000
 #define MAX_AGENT_NUM 5
-#define NF_QUEUE_RING_SIZE (256)
+#define NF_QUEUE_RING_SIZE (256*32)
 
 pthread_t pthreads[MAX_NF_NUM];
 pthread_attr_t pthread_attrs[MAX_NF_NUM];
@@ -56,26 +56,26 @@ struct sched_param sches[MAX_NF_NUM];
 //#define SFC_CHAIN_LEN 3
 #define MONITOR_PERIOD 30  // 3秒钟更新 一次 monitor的信息
 
-uint16_t nb_nfs = 3; //修改时必须更新nf_func_config, service_time_config, priority_config, start_sfc_config, flow_ip_table
-int rx_exclusive_lcore[RING_MAX] = {2, 4};//server 39
+uint16_t nb_nfs = 1; //修改时必须更新nf_func_config, service_time_config, priority_config, start_sfc_config, flow_ip_table
+int rx_exclusive_lcore[RING_MAX] = {2, 4,6,8};//server 39
 //int rx_exclusive_lcore[RING_MAX] = {1,2,3,4,5};//server 33
 // 根据不同机器来制定, 0预留给core manager
-int tx_exclusive_lcore[RING_MAX] = {6, 8};//server 39
+int tx_exclusive_lcore[RING_MAX] = {10,12,14,16};//server 39
 //int tx_exclusive_lcore[RING_MAX] = {6,7,8,9,10};//server 33
-lthread_func_t nf_fnuc_config[MAX_NF_NUM]={pthread_firewall, pthread_firewall, pthread_firewall, pthread_firewall,
-                                           pthread_firewall, pthread_firewall, pthread_firewall, pthread_firewall,                                           pthread_firewall, pthread_firewall, pthread_firewall, pthread_firewall,
-                                           pthread_firewall, pthread_firewall, pthread_firewall, pthread_firewall,
-                                           pthread_firewall, pthread_firewall, pthread_firewall, pthread_firewall,
-                                           pthread_firewall, pthread_firewall, pthread_firewall, pthread_firewall,
-                                           pthread_firewall, pthread_firewall, pthread_firewall, pthread_firewall,
-                                           pthread_firewall, pthread_firewall, pthread_firewall, pthread_firewall,
-                                           pthread_firewall, pthread_firewall, pthread_firewall, pthread_firewall,};//NF函数，在nfs头文件里面定义
-int start_sfc_config_flag[MAX_NF_NUM]={0,0 ,0,0, 0,0,0, 0, 0, 0,
+lthread_func_t nf_fnuc_config[MAX_NF_NUM]={pthread_firewall, pthread_aes_decryt, pthread_aes_decryt, pthread_aes_decryt,
+                                           pthread_aes_decryt, pthread_aes_decryt, pthread_aes_decryt, pthread_aes_decryt,                                           pthread_aes_decryt, pthread_aes_decryt, pthread_aes_decryt, pthread_aes_decryt,
+                                           pthread_aes_decryt, pthread_aes_decryt, pthread_aes_decryt, pthread_aes_decryt,
+                                           pthread_aes_decryt, pthread_aes_decryt, pthread_aes_decryt, pthread_aes_decryt,
+                                           pthread_aes_decryt, pthread_aes_decryt, pthread_aes_decryt, pthread_aes_decryt,
+                                           pthread_aes_decryt, pthread_aes_decryt, pthread_aes_decryt, pthread_aes_decryt,
+                                           pthread_aes_decryt, pthread_aes_decryt, pthread_aes_decryt, pthread_aes_decryt,
+                                           pthread_aes_decryt, pthread_aes_decryt, pthread_aes_decryt, pthread_aes_decryt,};//NF函数，在nfs头文件里面定义
+int start_sfc_config_flag[MAX_NF_NUM]={ 0,0 ,0,0, 0,0,0, 0, 0, 0,
                                        0, 0, 0, 0, 0, 0, 0, 0,
                                        0, 0, 0, 0, 0, 0, 0, 0,
                                        0, 0, 0, 0, 0, 0, 0, 0,};
 uint64_t flow_ip_table[MAX_NF_NUM]={
-        16820416,33597632,50374848, 67152064, 83929280, 100706496, 117483712, 134260928,
+        16820416, 33597632,50374848, 67152064, 83929280, 100706496, 117483712, 134260928,
         151038144, 167815360, 184592576, 201369792, 218147008, 234924224, 251701440, 268478656,
         285255872,302033088, 318810304, 335587520, 352364736, 369141952, 385919168, 402696384,
         419473600, 436250816,453028032,  469805248, 486582464, 503359680, 520136896, 536914112,
@@ -281,6 +281,8 @@ int main(int argc, char *argv[]) {
 
     cpu_set_t pthread_cpu_info;
 
+    struct timespec tv;
+
 //    struct sched_param sp = {
 ////            .sched_priority = 1//SCHED_RR
 //            .sched_priority = 0//SCHED_BATCH
@@ -292,6 +294,12 @@ int main(int argc, char *argv[]) {
 //        printf("error: %s\n", strerror(errno)); // error: Numerical argument out of domain
 //    }
 //    printf("Scheduler Policy now is %s.\n", sched_policy[sched_getscheduler(0)]);
+//    ret = sched_rr_get_interval(0, &tv);
+//    if(ret == 0){
+//        printf("time quota : %9lu.%9lu\n", tv.tv_sec, tv.tv_nsec);
+//    }
+
+
 
     int socket_id = rte_socket_id();
     const char *rq_name;
@@ -426,6 +434,7 @@ int main(int argc, char *argv[]) {
         cur_lcore = rte_get_next_lcore(cur_lcore, 1, 1);
 
     }*/
+    //TODO:使用原生pthread有个bug，程序不能通过ctrl+c退出，使用原生的和使用eal的性能一样，但是原生的可以测上下文切换时间
     // 使用pthread原生api
     CPU_ZERO(&pthread_cpu_info);
     CPU_SET(cur_lcore, &pthread_cpu_info);
@@ -442,7 +451,7 @@ int main(int argc, char *argv[]) {
 
             pthread_attr_getschedparam(&pthread_attrs[i], &sches[i]);
 
-//            sches[i].sched_priority = 20 + i * 30;
+//            sches[i].sched_priority = -10;
 
             pthread_attr_setschedparam(&pthread_attrs[i], &sches[i]);
         }
@@ -460,6 +469,11 @@ int main(int argc, char *argv[]) {
             printf("Pthread affinity setting failed for NF %d\n", i);
         }
 
+    }
+    printf("Scheduler Policy now is %s.\n", sched_policy[sched_getscheduler(0)]);
+    ret = sched_rr_get_interval(0, &tv);
+    if(ret == 0){
+        printf("time quota : %9lu.%9lu\n", tv.tv_sec, tv.tv_nsec);
     }
 //
 //    for(i = 0;i<nb_nfs;i++){

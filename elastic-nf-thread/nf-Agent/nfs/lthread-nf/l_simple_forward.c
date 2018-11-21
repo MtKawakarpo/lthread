@@ -31,28 +31,8 @@ lthread_forwarder(void *dumy){
     while (1){
         nb_rx = nf_ring_dequeue_burst(rq, pkts, BURST_SIZE, NULL);
         if (unlikely(nb_rx > 0)) {
-//            printf("nf %d recv %d pkts\n", nf_id, nb_rx);
-            //do somthing
-//            int g, h;
-//            long long result = 0;
-//            long long multiply = 1;
-//            for(g = 0;g<43;g++){
-//                multiply += 2;
-//                if(multiply > 1024 *64)
-//                    multiply = 1;
-//                for(h = 0;h<multiply;h++){
-//                    result += h;
-//                    if(result < 0)
-//                        result = 0;
-//                }
-//
-//            }
-//            if(multiply == 1024 && result == 40960000)
-//                printf("result=%d \n", result);
-//            printf("action= %d\n", ipv4_firewall_hash_entry_array[0].action);
+
             nb_tx = nf_ring_enqueue_burst(tq, pkts, nb_rx, NULL);
-//            if(nf_id >11)
-//               printf("nf %d suc transfer %d pkts\n", nf_id, nb_tx);
 
         }else {
             continue;

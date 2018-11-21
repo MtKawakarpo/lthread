@@ -26,25 +26,19 @@ pthread_forwarder(void *dumy){
 
 //    uint64_t start, end, cycle;
 
-    long long queue_full_cnt = 0;
-    long long iteration_cnt = 0;
-    int print_cnt = 3000000;
     printf("Core %d: Running NF thread %d\n", rte_lcore_id(), nf_id);
 
     while (1){
-        iteration_cnt++;
-        if(iteration_cnt%print_cnt == 0){
-            printf("nf %d : iteration = %lld, queue_full = %d\n",nf_id, iteration_cnt, queue_full_cnt);
-//            iteration_cnt = 0;
-//            queue_full_cnt = 0;
-        }
-        nb_rx = rte_ring_sc_dequeue_bulk(rq, pkts, BURST_SIZE, NULL);
+
+        nb_rx = rte_ring_dequeue_bulk(rq, pkts, BURST_SIZE, NULL);
         if (unlikely(nb_rx > 0)) {
 
 //            start = rdtsc();
             nb_tx = rte_ring_enqueue_burst(tq, pkts, nb_rx, NULL);
 
             if (unlikely(nb_tx < nb_rx)) {
+                printf("nf %d drop %d packets\n", nf_id,nb_rx-nb_tx);
+
                 uint32_t k;
                 for (k = nb_tx; k < nb_rx; k++) {
                     struct rte_mbuf *m = pkts[k];
@@ -55,7 +49,6 @@ pthread_forwarder(void *dumy){
 //            end = rdtsc();
 //            cycle = end - start;
 //            printf("cycle: %d\n", cycle);
-            queue_full_cnt++;
 
         }
         sched_yield();

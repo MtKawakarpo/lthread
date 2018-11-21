@@ -22,7 +22,19 @@ pthread_aes_decryt(void *dumy){
     printf("finish init aes decryt\n");
 //    uint64_t start, end, cycle;
 
+    long long queue_full_cnt = 0;
+    long long iteration_cnt = 0;
+    int print_cnt = 3000000;
+
     while (1){
+
+        //FIXME:add for test
+        iteration_cnt++;
+        if(iteration_cnt%print_cnt == 0){
+//            printf("nf %d : iteration = %lld, queue_full = %d\n",nf_id, iteration_cnt, queue_full_cnt);
+            iteration_cnt = 0;
+            queue_full_cnt = 0;
+        }
 
         nb_rx = rte_ring_sc_dequeue_bulk(rq, pkts, BURST_SIZE, NULL);
         if (unlikely(nb_rx > 0)) {
@@ -42,6 +54,7 @@ pthread_aes_decryt(void *dumy){
 //            end = rdtsc();
 //            cycle = end - start;
 //            printf("cycle: %d\n", cycle);
+            queue_full_cnt++;
         }
         sched_yield();
     }

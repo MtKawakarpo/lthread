@@ -40,7 +40,7 @@
 #define MAX_LCORE_NUM 24
 #define MAX_NF_NUM 1000
 #define MAX_AGENT_NUM 5
-#define NF_QUEUE_RING_SIZE 256
+#define NF_QUEUE_RING_SIZE (256*32)
 #define NF_NAME_RX_RING "Agent_NF_%u_rq"
 #define NF_NAME_TX_RING "Agent_NF_%u_tq"
 
@@ -50,34 +50,34 @@
 #define SFC_CHAIN_LEN 6 //FIXME: 限定SFC长度为3
 #define MONITOR_PERIOD 10  // 3秒钟更新 一次 monitor的信息
 
-uint16_t nb_nfs = 12; //修改时必须更新nf_func_config, service_time_config, priority_config, start_sfc_config, flow_ip_table
-uint16_t nb_agents = 3;//修改时必须更新coremask_set
+uint16_t nb_nfs = 6; //修改时必须更新nf_func_config, service_time_config, priority_config, start_sfc_config, flow_ip_table
+uint16_t nb_agents = 1;//修改时必须更新coremask_set
 int rx_exclusive_lcore[RING_MAX] = {2,4};//server 39
 // 根据不同机器来制定, 0预留给core manager
 int tx_exclusive_lcore[RING_MAX] = {6,8};//server 39
 static const int dv_tolerance = 500;//NF丢包率超过这个阈值才进行扩展处理
 static const int mini_sertime_per_core = 1;//core的total service time低于这个阈值则被认定空闲，应该回收
 static const int middle_load_level = 3;
-lthread_func_t nf_fnuc_config[MAX_NF_NUM]={lthread_aes_encryt, lthread_aes_encryt, lthread_aes_encryt, lthread_aes_encryt,
-                                           lthread_aes_encryt, lthread_aes_encryt, lthread_aes_encryt, lthread_aes_encryt,
-                                           lthread_aes_encryt, lthread_aes_encryt, lthread_aes_encryt, lthread_aes_encryt,
-                                           lthread_aes_encryt, lthread_aes_encryt, lthread_aes_encryt, lthread_aes_encryt,
-                                           lthread_aes_encryt, lthread_aes_encryt, lthread_aes_encryt, lthread_aes_encryt,
-                                           lthread_aes_encryt, lthread_aes_encryt, lthread_aes_encryt, lthread_aes_encryt,
-                                           lthread_aes_encryt, lthread_aes_encryt, lthread_aes_encryt, lthread_aes_encryt,
-                                           lthread_aes_encryt, lthread_aes_encryt, lthread_aes_encryt, lthread_aes_encryt,
-                                           lthread_aes_encryt, lthread_aes_encryt, lthread_aes_encryt, lthread_aes_encryt,};//NF函数，在nfs头文件里面定义
+lthread_func_t nf_fnuc_config[MAX_NF_NUM]={lthread_firewall, lthread_firewall, lthread_firewall, lthread_firewall,
+                                           lthread_firewall, lthread_firewall, lthread_firewall, lthread_firewall,
+                                           lthread_firewall, lthread_firewall, lthread_firewall, lthread_firewall,
+                                           lthread_firewall, lthread_firewall, lthread_firewall, lthread_firewall,
+                                           lthread_firewall, lthread_firewall, lthread_firewall, lthread_firewall,
+                                           lthread_firewall, lthread_firewall, lthread_firewall, lthread_firewall,
+                                           lthread_firewall, lthread_firewall, lthread_firewall, lthread_firewall,
+                                           lthread_firewall, lthread_firewall, lthread_firewall, lthread_firewall,
+                                           lthread_firewall, lthread_firewall, lthread_firewall, lthread_firewall,};//NF函数，在nfs头文件里面定义
 int nf_service_time_config[MAX_NF_NUM] = {1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
                                           1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
                                           1, 1, 1, 1, 1, 1, 1, 1, 1, 1};
-int nf_priority_config[MAX_NF_NUM]={0, 0, 1, 1, 1, 1, 1, 1,
-                                    2, 2, 2, 2, 0, 0, 0, 0, 0, 0,
+int nf_priority_config[MAX_NF_NUM]={0, 0, 0,0,0,0,0,0,0,0,0,0,
+                                    0, 0, 0, 0, 0, 0,
                                     0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
-int start_sfc_config_flag[MAX_NF_NUM]={0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+int start_sfc_config_flag[MAX_NF_NUM]={1,1,1,1,1,1,0, 0, 0, 0, 0, 0, 0,
                                        0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
                                        0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
 uint64_t flow_ip_table[MAX_NF_NUM]={
-        16820416, 33597632,50374848, 67152064, 83929280, 100706496, 117483712, 134260928,
+        16820416, 0,0,0,0,0,33597632,50374848, 67152064, 83929280, 100706496, 117483712, 134260928,
         151038144, 167815360, 184592576, 201369792, 218147008, 234924224, 251701440, 268478656,
         285255872,302033088, 318810304, 335587520, 352364736, 369141952, 385919168, 402696384,
         419473600, 436250816,453028032,  469805248, 486582464, 503359680, 520136896, 536914112,
@@ -97,9 +97,9 @@ int nf_tx_port[MAX_NF_NUM] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
  * CoreManager: core 0,
  * piority 0: core 6,8,10,(0x540)
  * p1:12,14(0x5000), p2:16(0x10000)  p3:18,20(0x140000)*/
-uint64_t coremask_set[MAX_AGENT_NUM]={
+uint64_t coremask_set[MAX_AGENT_NUM] = {
 //        0x140002, 0x500002, 0x1000001, 0x14000002};//10,12
-        0x140002, 0x15400004, 0x40000001, 0x14000002};
+        0x40001, 0x15400004, 0x40000001, 0x14000002};
 //        0x554005, 0x500002, 0x1000001, 0x14000002};
 
 struct Agent_info{
@@ -467,8 +467,9 @@ lthread_master_spawner(__rte_unused void *arg) {
     struct timespec time_start={0, 0},time_end={0, 0};
     while (keep_running){
 
-        rte_delay_ms(1000);
+        rte_delay_ms(2500);
 
+        //TODO:scale机制应该改为基于CPU利用率的
         monitor_tick++;
 //        if (monitor_tick == MONITOR_PERIOD) {
                 monitor_update(3);

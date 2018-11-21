@@ -28,31 +28,16 @@ pthread_firewall(void *dumy){
 
     printf("Core %d: Running NF thread %d\n", nf_info_local->lcore_id, nf_id);
     nf_firewall_init(statistics);
-    int queue_full_cnt = 1;
-    long long iteration_cnt = 0;
-    int print_cnt = 3000000;
-    int pkt_cnt = 0;
-//    uint64_t start, end, cycle;
 
+    int ret;
+//    uint64_t start, end, cycle;
 
     while (1){
 
-//        iteration_cnt++;
-//        if(iteration_cnt%print_cnt == 0){
-////            printf("nf %d : iteration = %lld, queue_full = %d\n",nf_id, iteration_cnt, queue_full_cnt);
-////            iteration_cnt = 0;
-////            queue_full_cnt = 0;
-//        }
         nb_rx = rte_ring_sc_dequeue_burst(rq, pkts, BURST_SIZE, NULL);
-//        printf("NF: %d is here with packets :%d\n", nf_id, nb_rx);
         if (unlikely(nb_rx > 0)) {
 //            start = rdtsc();
 
-            pkt_cnt += nb_rx;
-//
-//            if (pkt_cnt % 10000 == 0) {
-//                printf("NF %d recv %d pkts\n", nf_id, pkt_cnt);
-//            }
             nf_firewall_handler(pkts, nb_rx, statistics);
 //            end = rdtsc();
 //            cycle = end - start;
@@ -67,16 +52,12 @@ pthread_firewall(void *dumy){
                     rte_pktmbuf_free(m);
                 }
 
-                queue_full_cnt += (nb_rx - nb_tx);
             }
-//
-//            if (queue_full_cnt % 256 == 0) {
-//                printf("NF %d queue full with %d\n", nf_id, queue_full_cnt);
-//            }
+
 
         }else{
         }
-//        sched_yield();
+        sched_yield();
 
     }
     return 0;

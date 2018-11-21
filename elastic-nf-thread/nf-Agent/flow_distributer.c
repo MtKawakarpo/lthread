@@ -253,6 +253,7 @@ int flow_director_rx_thread(struct port_info *args) {
 //            if (worker_id != 0 && worker_id != 1)
 //                ret = 1;
             if (unlikely(ret != 0)) {
+
 //                printf("rx send pkts failed\n");
                 garbage_mbufs[garbage_count] = pkts[i];
                 garbage_count++;
